@@ -102,11 +102,17 @@
   const TABS = {
     vocab: ["Từ vựng", { flash: "Thẻ ghi nhớ", list: "Danh sách", quiz: "Trắc nghiệm", spell: "Nghe – gõ từ" }],
     listen: ["Nghe", { video: "Video bài học", dict: "Chép chính tả", dlg: "Nghe hội thoại" }],
-    speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại" }]
+    speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại" }],
+    game: ["🎮 Trò chơi", { memory: "Lật thẻ ghép cặp", scramble: "Xếp chữ", balloon: "Bóng bay từ vựng" }]
   };
+  // hẹn giờ của trò chơi: tự hủy khi chuyển trang
+  const timers = new Set();
+  const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); return t; };
+  const every = (fn, ms) => { const t = setInterval(fn, ms); timers.add(t); return t; };
+  const clearTimers = () => { timers.forEach((t) => { clearTimeout(t); clearInterval(t); }); timers.clear(); };
   const VIEWS = {};
   function route() {
-    stopSay(); stopRec();
+    stopSay(); stopRec(); clearTimers();
     const [, a, id, tab, mode] = location.hash.split("/");
     const u = a === "u" && C.find((x) => x.id === +id);
     if (!u) return home();
@@ -120,7 +126,7 @@
   function home() {
     crumbs.innerHTML = "";
     app.innerHTML = `<h1>Chọn bài học</h1>
-      <p class="sub">8 unit theo giáo trình. Mỗi unit gồm ba phần: <b>Từ vựng</b>, <b>Nghe</b> và <b>Nói</b>.</p>
+      <p class="sub">8 unit theo giáo trình. Mỗi unit gồm <b>Từ vựng</b>, <b>Nghe</b>, <b>Nói</b> và <b>Trò chơi</b> ôn từ.</p>
       <div class="grid">${C.map((u) => {
         const p = progress(u);
         return `<a class="card unit" href="#/u/${u.id}/vocab">
@@ -449,6 +455,157 @@
       if (who !== me) say(text, { who: who === "A" ? 0 : 1, onend: () => setTimeout(() => { k++; turn(); }, 400) });
     };
     draw();
+  };
+
+  /* ================= TRÒ CHƠI ================= */
+  const stars = (n) => `<div class="stars">${"★".repeat(n)}<span>${"★".repeat(3 - n)}</span></div>`;
+  const G = (u) => (P(u.id).game ||= {});
+
+  // Lật thẻ: ghép từ tiếng Anh với nghĩa tiếng Việt
+  VIEWS.memory = (u, pane) => {
+    const g = G(u), N = 8;
+    const pick = shuffle(u.vocab).slice(0, N);
+    const cards = shuffle(pick.flatMap((w, i) => [{ id: i, t: w[0], en: true }, { id: i, t: w[2], en: false }]));
+    let open = [], lock = false, moves = 0, found = 0;
+    pane.innerHTML = `<div class="row gamebar"><span>Lượt lật: <b id="mv">0</b></span><span>Cặp đúng: <b id="fd">0</b>/${N}</span>
+        <span class="spacer"></span>${g.memory ? `<span class="tag">kỷ lục ${g.memory} lượt</span>` : ""}<button class="btn" id="re">↻ Ván mới</button></div>
+      <p class="muted small">Lật hai thẻ để tìm cặp <b>từ tiếng Anh</b> – <b>nghĩa tiếng Việt</b>. Càng ít lượt lật càng giỏi!</p>
+      <div class="mem">${cards.map((c, k) => `<button class="mcard" data-k="${k}"><span class="back">?</span><span class="face ${c.en ? "en" : "vi"}">${esc(c.t)}</span></button>`).join("")}</div><div id="fb"></div>`;
+    $("#re").onclick = () => { clearTimers(); VIEWS.memory(u, pane); };
+    on(".mcard", "click", (e) => {
+      const el = e.currentTarget, c = cards[+el.dataset.k];
+      if (lock || el.classList.contains("up")) return;
+      el.classList.add("up");
+      if (c.en) say(c.t, { rate: 0.85 });
+      open.push([el, c]);
+      if (open.length < 2) return;
+      $("#mv").textContent = ++moves;
+      const [[e1, c1], [e2, c2]] = open; open = [];
+      if (c1.id === c2.id) {
+        e1.classList.add("done"); e2.classList.add("done");
+        $("#fd").textContent = ++found;
+        if (!c.en) say(pick[c.id][0], { rate: 0.85 });
+        if (found === N) {
+          if (!g.memory || moves < g.memory) { g.memory = moves; save(); }
+          $("#fb").innerHTML = `<div class="fb good center">${stars(moves <= 12 ? 3 : moves <= 18 ? 2 : 1)}<div class="big">Giỏi lắm! Xong sau ${moves} lượt lật.</div><div>Kỷ lục: ${g.memory} lượt</div></div>`;
+          $("#fb").scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      } else {
+        lock = true;
+        later(() => { e1.classList.remove("up"); e2.classList.remove("up"); lock = false; }, 900);
+      }
+    });
+  };
+
+  // Xếp chữ: bấm các chữ cái theo đúng thứ tự để ghép thành từ
+  VIEWS.scramble = (u, pane) => {
+    const g = G(u), deck = shuffle(u.vocab).slice(0, 10), isL = (c) => /[a-z]/i.test(c);
+    let i = 0, score = 0;
+    const round = () => {
+      if (i >= deck.length) {
+        if (!(g.scramble >= score)) { g.scramble = score; save(); }
+        pane.innerHTML = `<div class="card center">${stars(score >= 26 ? 3 : score >= 18 ? 2 : 1)}<div class="muted">Điểm của con</div><div class="score">${score}/30</div>
+          <p class="muted">Điểm cao nhất: ${g.scramble}</p><button class="btn pri" id="again">Chơi lại</button></div>`;
+        $("#again").onclick = () => VIEWS.scramble(u, pane);
+        return;
+      }
+      const w = deck[i], chars = [...w[0]], need = chars.map((c, k) => (isL(c) ? k : -1)).filter((k) => k >= 0);
+      let pos = 0, miss = 0, tiles = shuffle(need.map((k) => chars[k].toLowerCase()));
+      if (need.length > 1 && tiles.join("") === need.map((k) => chars[k].toLowerCase()).join("")) tiles.reverse();
+      pane.innerHTML = `<div class="card center"><div class="row gamebar"><span>Từ ${i + 1}/${deck.length}</span><span class="spacer"></span><span>Điểm: <b>${score}</b></span></div>
+        <div style="margin:14px 0 4px"><button class="icon" id="sp">🔊</button></div>
+        <div class="big" style="color:var(--vocab)">${esc(w[2])}</div>
+        <div class="slots">${chars.map((c, k) => (isL(c) ? `<span class="slot" data-k="${k}"></span>` : c === " " ? '<span class="gap"></span>' : `<span class="slot fixed">${esc(c)}</span>`)).join("")}</div>
+        <div class="tiles">${tiles.map((c) => `<button class="tile" data-c="${c}">${c}</button>`).join("")}</div>
+        <div class="row" style="justify-content:center"><button class="btn" id="hint">💡 Gợi ý 1 chữ</button><button class="btn" id="skip">Bỏ qua ›</button></div>
+        <div id="fb"></div></div>`;
+      const place = (tile) => {
+        const k = need[pos];
+        pane.querySelector(`.slot[data-k="${k}"]`).textContent = chars[k];
+        tile.disabled = true; tile.classList.add("used");
+        if (++pos < need.length) return;
+        const pts = miss === 0 ? 3 : miss <= 2 ? 2 : 1;
+        score += pts;
+        app.querySelectorAll(".slot").forEach((s) => s.classList.add("ok"));
+        $("#hint").disabled = $("#skip").disabled = true;
+        say(w[0] + ". " + w[3], { rate: 0.85 });
+        $("#fb").innerHTML = `<div class="fb good">+${pts} điểm! <b>${esc(w[0])}</b> ${esc(w[1])}<br><i>${esc(w[3])}</i></div>
+          <div style="margin-top:12px"><button class="btn pri" id="nx">Từ tiếp ›</button></div>`;
+        $("#nx").onclick = () => { i++; round(); };
+        $("#nx").focus();
+      };
+      $("#sp").onclick = () => say(w[0], { rate: 0.75 });
+      $("#skip").onclick = () => { i++; round(); };
+      $("#hint").onclick = () => {
+        const want = chars[need[pos]].toLowerCase();
+        miss += 2;
+        place([...app.querySelectorAll(".tile:not(.used)")].find((t) => t.dataset.c === want));
+      };
+      on(".tile", "click", (e) => {
+        const t = e.currentTarget;
+        if (t.dataset.c === chars[need[pos]].toLowerCase()) return place(t);
+        miss++;
+        t.classList.remove("shake"); void t.offsetWidth; t.classList.add("shake");
+      });
+      say(w[0], { rate: 0.75 });
+    };
+    round();
+  };
+
+  // Bóng bay: đọc nghĩa tiếng Việt, bấm vào quả bóng có từ tiếng Anh đúng
+  VIEWS.balloon = (u, pane) => {
+    const g = G(u), COLORS = ["#e8590c", "#1f7ae0", "#2f9e44", "#ae3ec9", "#d6336c", "#0c8599"];
+    let score, lives, time, ended, target;
+    const intro = () => {
+      pane.innerHTML = `<div class="card center"><div style="font-size:54px">🎈</div><div class="big">Bóng bay từ vựng</div>
+        <p>Đọc nghĩa tiếng Việt ở phía trên, rồi <b>bấm vào quả bóng có từ tiếng Anh đúng</b> trước khi nó bay mất.<br>
+        Con có <b>60 giây</b> và <b>3 mạng</b> ❤️. Bấm sai hoặc để bóng đúng bay mất sẽ mất một mạng.</p>
+        ${g.balloon ? `<p class="muted">Điểm cao nhất: ${g.balloon}</p>` : ""}<button class="btn pri" id="go">▶ Bắt đầu chơi</button></div>`;
+      $("#go").onclick = start;
+    };
+    const hud = () => { $("#hud").innerHTML = `<span>⏱ <b>${time}</b> giây</span><span>${"❤️".repeat(lives)}${"🤍".repeat(3 - lives)}</span><span class="spacer"></span><span>Điểm: <b>${score}</b></span>`; };
+    const start = () => {
+      score = 0; lives = 3; time = 60; ended = false; target = null;
+      pane.innerHTML = `<div class="row gamebar" id="hud"></div><div class="sky" id="sky"><div class="ask" id="ask"></div></div>`;
+      hud();
+      every(() => { time--; hud(); if (time <= 0) over(); }, 1000);
+      spawn();
+    };
+    const lose = () => { lives--; hud(); if (lives <= 0) over(); };
+    const spawn = () => {
+      if (ended) return;
+      const sky = $("#sky");
+      sky.querySelectorAll(".balloon").forEach((b) => b.remove());
+      const pool = u.vocab.filter((w) => w !== target);
+      target = pool[Math.floor(Math.random() * pool.length)];
+      const mine = target, opts = shuffle([mine, ...shuffle(pool.filter((w) => w !== mine)).slice(0, 3)]);
+      const cols = shuffle(COLORS), dur = Math.max(4.5, 8.5 - score / 40);
+      $("#ask").textContent = mine[2];
+      opts.forEach((o, k) => {
+        const b = document.createElement("button");
+        b.className = "balloon"; b.textContent = o[0];
+        b.style.left = 1.5 + k * 24.5 + "%"; b.style.background = cols[k];
+        b.style.animationDuration = dur + (o === mine ? 0.6 : Math.random() * 0.6) + "s";
+        b.onclick = () => {
+          if (ended) return;
+          if (o === mine) { score += 10; hud(); say(o[0], { rate: 0.85 }); b.classList.add("pop"); later(spawn, 350); }
+          else { b.disabled = true; b.classList.add("wrong"); lose(); }
+        };
+        if (o === mine) b.addEventListener("animationend", (e) => { if (e.animationName === "rise" && !ended) { lose(); spawn(); } });
+        sky.appendChild(b);
+      });
+    };
+    const over = () => {
+      if (ended) return;
+      ended = true; clearTimers();
+      const missed = target;
+      if (!(g.balloon >= score)) { g.balloon = score; save(); }
+      pane.innerHTML = `<div class="card center">${stars(score >= 120 ? 3 : score >= 60 ? 2 : 1)}<div class="muted">${lives <= 0 ? "Hết mạng rồi!" : "Hết giờ!"} Điểm của con</div><div class="score">${score}</div>
+        <p class="muted">Điểm cao nhất: ${g.balloon}${missed ? ` · Từ vừa rồi: <b>${esc(missed[0])}</b> = ${esc(missed[2])}` : ""}</p>
+        <button class="btn pri" id="again">Chơi lại</button></div>`;
+      $("#again").onclick = start;
+    };
+    intro();
   };
 
   route();
