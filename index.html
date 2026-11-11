@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Business Partner A1 – Nghe · Nói · Từ vựng</title>
-<link rel="stylesheet" href="style.css">
+<script>
+  // Gắn mã phiên bản theo thời gian (đổi mỗi 5 phút) để trình duyệt không dùng bản cũ đã lưu.
+  var V = Math.floor(Date.now() / 300000);
+  document.write('<link rel="stylesheet" href="style.css?v=' + V + '">');
+</script>
 </head>
 <body>
 <header class="top">
@@ -16,7 +20,8 @@
 </header>
 <main id="app"></main>
 <footer class="foot">Bài luyện tập tự biên soạn theo chủ đề giáo trình Business Partner A1 · Tiến độ lưu trên trình duyệt này · <a href="#" id="rename">Đổi tên người học</a></footer>
-<script src="data.js"></script>
-<script src="app.js"></script>
+<script>
+  document.write('<script src="data.js?v=' + V + '"><\/script><script src="app.js?v=' + V + '"><\/script>');
+</script>
 </body>
 </html>
