@@ -141,6 +141,7 @@
   const VIEWS = {};
   function route() {
     stopSay(); stopRec(); clearTimers();
+    if (locked()) return showLock();
     const [, a, id, tab, mode] = location.hash.split("/");
     const u = a === "u" && C.find((x) => x.id === +id);
     if (!u) return home();
@@ -640,5 +641,56 @@
     intro();
   };
 
+  /* ================= GIỚI HẠN THỜI GIAN ================= */
+  // Mỗi ngày dùng tối đa LIMIT giây; hết giờ thì khóa trang trong LOCK mili giây.
+  const LIMIT = 10 * 60, LOCK = 8 * 60 * 60 * 1000, TKEY = "bpa1-time";
+  const timerEl = document.getElementById("timer");
+  const loadT = () => { try { return Object.assign({ used: 0, day: "", until: 0 }, JSON.parse(localStorage.getItem(TKEY))); } catch { return { used: 0, day: "", until: 0 }; } };
+  const saveT = (t) => { try { localStorage.setItem(TKEY, JSON.stringify(t)); } catch { /* bỏ qua */ } };
+  const today = () => new Date().toDateString();
+  const two = (n) => String(n).padStart(2, "0");
+  const clock = (sec) => { sec = Math.max(0, Math.ceil(sec)); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60; return (h ? h + ":" + two(m) : m) + ":" + two(s); };
+  let lockShown = false;
+  function locked() { return Date.now() < loadT().until; }
+  function showLock() {
+    stopSay(); stopRec(); clearTimers();
+    lockShown = true;
+    const until = new Date(loadT().until);
+    crumbs.innerHTML = "";
+    if (timerEl) timerEl.textContent = "🔒 Đang khóa";
+    app.innerHTML = `<div class="card center lock"><div style="font-size:64px">🔒</div>
+      <h1>Hôm nay ${esc(kid)} đã học đủ ${LIMIT / 60} phút rồi!</h1>
+      <p>${esc(kid)} giỏi lắm. Bây giờ hãy nghỉ ngơi, cho mắt thư giãn nhé. 🌙</p>
+      <p class="muted">Trang sẽ mở lại sau</p><div class="score" id="lockcd"></div>
+      <p class="muted">Mở lại lúc ${two(until.getHours())}:${two(until.getMinutes())} ngày ${two(until.getDate())}/${two(until.getMonth() + 1)}</p></div>`;
+    window.scrollTo(0, 0);
+  }
+  function tick() {
+    const t = loadT(), now = Date.now();
+    if (now < t.until) {
+      if (!lockShown) showLock();
+      const cd = document.getElementById("lockcd");
+      if (cd) cd.textContent = clock((t.until - now) / 1000);
+      return;
+    }
+    if (t.until) { t.until = 0; t.used = 0; }            // vừa hết thời gian khóa
+    if (t.day !== today()) { t.day = today(); t.used = 0; } // sang ngày mới
+    if (lockShown) { lockShown = false; saveT(t); route(); }
+    if (document.visibilityState === "visible") t.used++;
+    if (t.used >= LIMIT) {
+      t.until = now + LOCK; t.used = 0; saveT(t);
+      showLock(); tick();
+      return;
+    }
+    saveT(t);
+    if (timerEl) {
+      const left = LIMIT - t.used;
+      timerEl.textContent = "⏱ Còn " + clock(left);
+      timerEl.classList.toggle("low", left <= 60);
+    }
+  }
+  setInterval(tick, 1000);
+
   route();
+  tick();
 })();
