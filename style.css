@@ -146,3 +146,7 @@ select.inp { width: auto; padding: 8px 10px; }
 @keyframes rise { to { bottom: 105%; } }
 @keyframes pop { to { transform: scale(1.6); opacity: 0; } }
 @media (max-width: 560px) { .mem { gap: 6px; } .mcard { min-height: 84px; } .mcard .face { font-size: 12.5px; } .balloon { font-size: 12px; height: 84px; } .slot { width: 30px; height: 40px; font-size: 22px; } .tile { width: 40px; height: 40px; } .ask { font-size: 17px; } }
+
+/* lời động viên */
+#cheer { position: fixed; left: 50%; bottom: 26px; z-index: 20; transform: translate(-50%, 30px) scale(.8); opacity: 0; pointer-events: none; width: max-content; max-width: 92vw; text-align: center; padding: 12px 24px; border-radius: 28px; font-size: 20px; font-weight: 800; color: #fff; background: linear-gradient(90deg, #d6336c, #f08c00); box-shadow: 0 8px 24px rgba(214, 51, 108, .35); transition: transform .25s cubic-bezier(.2, 1.6, .4, 1), opacity .25s; }
+#cheer.show { transform: translate(-50%, 0) scale(1); opacity: 1; }

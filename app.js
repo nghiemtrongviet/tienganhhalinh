@@ -19,6 +19,34 @@
   }
   const pc = (x) => Math.round(x * 100);
 
+  /* ---------- lời động viên ---------- */
+  const NAMEKEY = "bpa1-name";
+  let kid = "Hà Linh";
+  try { kid = localStorage.getItem(NAMEKEY) || kid; } catch { /* bỏ qua */ }
+  const CHEERS = ["{n} cố lên! 💪", "{n} giỏi quá! 🌟", "Tuyệt vời, {n}! 🎉", "Chính xác! {n} cố lên nhé! 💖", "{n} làm tốt lắm! 👏", "Xuất sắc, {n}! 🏆", "Đúng rồi! {n} tiếp tục nào! 🚀", "{n} thông minh quá! ✨", "Hoan hô {n}! 🥳", "{n} cố lên, sắp giỏi tiếng Anh rồi! 📚"];
+  let lastCheer = -1, cheerT;
+  function cheer() {
+    let i; do { i = Math.floor(Math.random() * CHEERS.length); } while (i === lastCheer);
+    lastCheer = i;
+    let el = document.getElementById("cheer");
+    if (!el) { el = document.createElement("div"); el.id = "cheer"; el.setAttribute("aria-live", "polite"); document.body.appendChild(el); }
+    el.textContent = CHEERS[i].replace("{n}", kid);
+    el.className = ""; void el.offsetWidth; el.className = "show";
+    clearTimeout(cheerT); cheerT = setTimeout(() => { el.className = ""; }, 1900);
+  }
+  const renameEl = document.getElementById("rename");
+  if (renameEl) {
+    const label = () => { renameEl.textContent = `Người học: ${kid} (đổi tên)`; };
+    label();
+    renameEl.onclick = (e) => {
+      e.preventDefault();
+      const n = (prompt("Tên người học (dùng trong lời động viên):", kid) || "").trim().slice(0, 30);
+      if (!n) return;
+      kid = n; try { localStorage.setItem(NAMEKEY, n); } catch { /* bỏ qua */ }
+      label(); cheer();
+    };
+  }
+
   /* ---------- tiện ích ---------- */
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const shuffle = (a) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -185,6 +213,7 @@
     };
     const step = (known) => {
       const w = deck[i][0];
+      if (known) cheer();
       if (known && !p.known.includes(w)) p.known.push(w);
       if (!known) p.known = p.known.filter((x) => x !== w);
       save(); refreshBar();
@@ -237,7 +266,7 @@
       if (q.audio) say(q.w[0], { rate: 0.8 });
       on(".opt", "click", (e) => {
         const pick = q.opts[+e.currentTarget.dataset.k], ok = pick === q.w;
-        if (ok) right++;
+        if (ok) { right++; cheer(); }
         app.querySelectorAll(".opt").forEach((b, k) => { b.disabled = true; if (q.opts[k] === q.w) b.classList.add("right"); else if (b === e.currentTarget) b.classList.add("wrong"); });
         $("#fb").innerHTML = `<div class="fb ${ok ? "good" : "bad"}"><b>${esc(q.w[0])}</b> ${esc(q.w[1])} — ${esc(q.w[2])}<br><i>${esc(q.w[3])}</i></div>
           <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn pri" id="nx">Tiếp ›</button></div>`;
@@ -270,7 +299,7 @@
         e.preventDefault();
         if ($("#in").disabled) { i++; draw(); return; }
         const ok = words($("#in").value).join(" ") === words(w[0]).join(" ");
-        if (ok) { right++; if (!p.known.includes(w[0])) { p.known.push(w[0]); save(); refreshBar(); } }
+        if (ok) { right++; cheer(); if (!p.known.includes(w[0])) { p.known.push(w[0]); save(); refreshBar(); } }
         $("#in").disabled = true;
         $("#f button").textContent = "Tiếp ›";
         $("#fb").innerHTML = `<div class="fb ${ok ? "good" : "bad"}">${ok ? "Chính xác!" : "Chưa đúng."} <b>${esc(w[0])}</b> ${esc(w[1])} — ${esc(w[2])}</div>`;
@@ -314,6 +343,7 @@
       $("#f").onsubmit = (e) => {
         e.preventDefault();
         const r = match(en, $("#in").value);
+        if (r.exact) cheer();
         if (r.exact && !p.dict.includes(i)) { p.dict.push(i); save(); refreshBar(); }
         $("#fb").innerHTML = `<div class="fb ${r.exact ? "good" : r.score >= 60 ? "mid" : "bad"}">
           ${r.exact ? "Chính xác!" : `Đúng ${r.score}% số từ. Từ gạch chân là từ còn thiếu hoặc sai — nghe lại và sửa nhé.`}
@@ -358,6 +388,7 @@
     on(".opt", "click", (e) => {
       const k = +e.currentTarget.dataset.q, j = +e.currentTarget.dataset.j, ok = j === d.questions[k][2];
       answers[k] = ok;
+      if (ok) cheer();
       app.querySelectorAll(`.opt[data-q="${k}"]`).forEach((b) => b.classList.remove("right", "wrong"));
       e.currentTarget.classList.add(ok ? "right" : "wrong");
       if (d.questions.every((_, x) => answers[x])) {
@@ -401,6 +432,7 @@
           const rs = alts.map((t) => ({ t, r: match(en, t) })).sort((a, b) => b.r.score - a.r.score)[0];
           const [cls, msg] = verdict(rs.r.score);
           record(rs.r.score);
+          if (rs.r.score >= 70) cheer();
           $("#fb").innerHTML = `<div class="fb ${cls} center"><div class="score">${rs.r.score}%</div><div>${msg}</div>${paint(en, rs.r.hit)}
             <div class="small">Máy nghe được: “${esc(rs.t)}”</div></div>`;
         }, (live) => { btn.classList.toggle("live", live); btn.textContent = live ? "● Đang nghe… (bấm để dừng)" : "🎙 Bấm để nói"; });
@@ -439,7 +471,7 @@
           const rs = alts.map((t) => ({ t, r: match(line, t) })).sort((a, b) => b.r.score - a.r.score)[0];
           const [cls, msg] = verdict(rs.r.score);
           if (rs.r.score >= 70) {
-            scores.push(rs.r.score);
+            scores.push(rs.r.score); cheer();
             $("#fb").innerHTML = `<div class="fb ${cls}">${rs.r.score}% — ${msg}</div>`;
             setTimeout(() => { if ($("#fb")) { k++; turn(); } }, 900);
           } else {
@@ -483,7 +515,7 @@
       const [[e1, c1], [e2, c2]] = open; open = [];
       if (c1.id === c2.id) {
         e1.classList.add("done"); e2.classList.add("done");
-        $("#fd").textContent = ++found;
+        $("#fd").textContent = ++found; cheer();
         if (!c.en) say(pick[c.id][0], { rate: 0.85 });
         if (found === N) {
           if (!g.memory || moves < g.memory) { g.memory = moves; save(); }
@@ -525,7 +557,7 @@
         tile.disabled = true; tile.classList.add("used");
         if (++pos < need.length) return;
         const pts = miss === 0 ? 3 : miss <= 2 ? 2 : 1;
-        score += pts;
+        score += pts; cheer();
         app.querySelectorAll(".slot").forEach((s) => s.classList.add("ok"));
         $("#hint").disabled = $("#skip").disabled = true;
         say(w[0] + ". " + w[3], { rate: 0.85 });
@@ -588,7 +620,7 @@
         b.style.animationDuration = dur + (o === mine ? 0.6 : Math.random() * 0.6) + "s";
         b.onclick = () => {
           if (ended) return;
-          if (o === mine) { score += 10; hud(); say(o[0], { rate: 0.85 }); b.classList.add("pop"); later(spawn, 350); }
+          if (o === mine) { score += 10; hud(); cheer(); say(o[0], { rate: 0.85 }); b.classList.add("pop"); later(spawn, 350); }
           else { b.disabled = true; b.classList.add("wrong"); lose(); }
         };
         if (o === mine) b.addEventListener("animationend", (e) => { if (e.animationName === "rise" && !ended) { lose(); spawn(); } });
