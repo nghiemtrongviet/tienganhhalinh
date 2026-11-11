@@ -152,8 +152,14 @@ select.inp { width: auto; padding: 8px 10px; }
 #cheer.show { transform: translate(-50%, 0) scale(1); opacity: 1; }
 
 /* giới hạn thời gian */
-#timer { margin-left: auto; font-size: 14px; font-weight: 700; background: rgba(255, 255, 255, .14); padding: 5px 12px; border-radius: 99px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+#timer { font-size: 14px; font-weight: 700; background: rgba(255, 255, 255, .14); padding: 5px 12px; border-radius: 99px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 #timer:empty { display: none; }
 #timer.low { background: #f5b301; color: #12284d; }
 .lock { padding: 36px 18px; }
 .lock h1 { margin-bottom: 10px; }
+
+/* nhắc đọc to */
+#mic { margin-left: auto; font-size: 13px; opacity: .85; white-space: nowrap; }
+#remind { position: fixed; left: 50%; top: 76px; z-index: 21; transform: translate(-50%, -30px); opacity: 0; pointer-events: none; width: max-content; max-width: 92vw; text-align: center; padding: 14px 24px; border-radius: 16px; font-size: 20px; font-weight: 800; color: #12284d; background: #ffd43b; border: 3px solid #f08c00; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); transition: transform .3s, opacity .3s; }
+#remind.show { transform: translate(-50%, 0); opacity: 1; animation: nudge .5s 3; }
+@keyframes nudge { 25% { margin-left: -6px; } 75% { margin-left: 6px; } }

@@ -86,8 +86,9 @@
     r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 3;
     r.onresult = (e) => { alts = [...e.results[0]].map((a) => a.transcript); };
     r.onerror = (e) => { err = e.error; };
-    r.onend = () => { activeRec = null; onState(false); onDone(alts, err); };
+    r.onend = () => { activeRec = null; onState(false); if (alts.length) markVoice(); startMonitor(); onDone(alts, err); };
     activeRec = r;
+    stopMonitor(); // nhả micro cho bộ nhận dạng giọng nói
     try { r.start(); onState(true); } catch { onState(false); onDone([], "start"); }
   }
   function stopRec() { if (activeRec) { try { activeRec.abort(); } catch { /* bỏ qua */ } activeRec = null; } }
@@ -641,6 +642,56 @@
     intro();
   };
 
+  /* ================= NHẮC ĐỌC TO ================= */
+  // Nghe âm lượng micro (chỉ xử lý ngay trên máy, không ghi âm, không gửi đi đâu).
+  // Nếu QUIET mili giây không thấy tiếng đọc thì hiện lời nhắc.
+  const QUIET = 2 * 60 * 1000, micEl = document.getElementById("mic");
+  let lastVoice = Date.now(), mon = null, monWanted = false, monDenied = false, loud = 0, remindT;
+  function markVoice() { lastVoice = Date.now(); }
+  function micLabel() {
+    if (!micEl) return;
+    const on = mon && mon.stream;
+    micEl.textContent = on ? "🎙 Đang nghe" : monDenied ? "🎙 Chưa bật" : "";
+    micEl.title = on ? "Trang đang nghe xem bạn có đọc to không. Âm thanh không được ghi lại hay gửi đi." : "Hãy cho phép micro để trang biết bạn đang đọc to.";
+  }
+  async function startMonitor() {
+    if (mon || monDenied || !monWanted || activeRec || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return;
+    const me = (mon = {});
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      if (mon !== me) { stream.getTracks().forEach((t) => t.stop()); return; }
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const an = ctx.createAnalyser(); an.fftSize = 1024;
+      ctx.createMediaStreamSource(stream).connect(an);
+      const buf = new Float32Array(an.fftSize);
+      me.stream = stream; me.ctx = ctx;
+      me.timer = setInterval(() => {
+        an.getFloatTimeDomainData(buf);
+        let s = 0; for (const v of buf) s += v * v;
+        // đủ to trong ~0,6 giây liên tục và không phải lúc máy đang đọc mẫu
+        if (Math.sqrt(s / buf.length) > 0.03 && !(hasTTS && speechSynthesis.speaking)) { if (++loud >= 3) markVoice(); } else loud = 0;
+      }, 200);
+    } catch { if (mon === me) mon = null; monDenied = true; }
+    micLabel();
+  }
+  function stopMonitor() {
+    const m = mon; mon = null;
+    if (!m) return;
+    clearInterval(m.timer);
+    if (m.stream) m.stream.getTracks().forEach((t) => t.stop());
+    if (m.ctx) m.ctx.close().catch(() => {});
+    micLabel();
+  }
+  function remind() {
+    let el = document.getElementById("remind");
+    if (!el) { el = document.createElement("div"); el.id = "remind"; el.setAttribute("role", "alert"); document.body.appendChild(el); }
+    el.textContent = "📣 Bạn cần đọc to các từ nhìn thấy";
+    el.className = ""; void el.offsetWidth; el.className = "show";
+    clearTimeout(remindT); remindT = setTimeout(() => { el.className = ""; }, 8000);
+  }
+  document.addEventListener("pointerdown", () => { monWanted = true; if (!locked()) startMonitor(); }, { once: true });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") { if (!locked()) startMonitor(); } else stopMonitor(); });
+
   /* ================= GIỚI HẠN THỜI GIAN ================= */
   // Mỗi ngày dùng tối đa LIMIT giây; hết giờ thì khóa trang trong LOCK mili giây.
   const LIMIT = 10 * 60, LOCK = 8 * 60 * 60 * 1000, TKEY = "bpa1-time";
@@ -653,7 +704,7 @@
   let lockShown = false;
   function locked() { return Date.now() < loadT().until; }
   function showLock() {
-    stopSay(); stopRec(); clearTimers();
+    stopSay(); stopRec(); clearTimers(); stopMonitor();
     lockShown = true;
     const until = new Date(loadT().until);
     crumbs.innerHTML = "";
@@ -676,7 +727,13 @@
     if (t.until) { t.until = 0; t.used = 0; }            // vừa hết thời gian khóa
     if (t.day !== today()) { t.day = today(); t.used = 0; } // sang ngày mới
     if (lockShown) { lockShown = false; saveT(t); route(); }
-    if (document.visibilityState === "visible") t.used++;
+    const visible = document.visibilityState === "visible";
+    if (visible) t.used++;
+    // nhắc đọc to: chỉ tính khi đang ở trong một unit và không phải lúc xem video
+    const reading = visible && /^#\/u\/\d/.test(location.hash) && !location.hash.includes("/listen/video");
+    if (!reading) lastVoice = now;
+    else if (now - lastVoice >= QUIET) { remind(); lastVoice = now; }
+    if (visible && monWanted && !mon) startMonitor();
     if (t.used >= LIMIT) {
       t.until = now + LOCK; t.used = 0; saveT(t);
       showLock(); tick();
