@@ -142,7 +142,7 @@
   function stopRec() { const r = activeRec; if (r) { r.silent = true; r.finishNow(); } }
   const srError = (err) => ({
     "not-allowed": "Trình duyệt chưa được cấp quyền micro. Hãy cho phép micro rồi thử lại.",
-    "service-not-allowed": "Trình duyệt chặn dịch vụ nhận dạng giọng nói.",
+    "service-not-allowed": "Trình duyệt này không cho dùng nhận dạng giọng nói. Cách sửa: mở trang bằng Chrome (máy tính, Android). Trên iPhone/iPad: dùng Safari và bật Đọc chính tả trong Cài đặt › Cài đặt chung › Bàn phím. Nếu đang mở trang từ Zalo, Messenger hay Facebook: bấm dấu ⋮ rồi chọn mở bằng trình duyệt.",
     "no-speech": "Không nghe thấy gì. Hãy nói to, rõ hơn và thử lại.",
     "audio-capture": "Không tìm thấy micro.",
     "network": "Nhận dạng giọng nói cần kết nối mạng."
@@ -576,7 +576,7 @@
           if (!$("#fb")) return;
           if (!alts.length) {
             fails++;
-            $("#fb").innerHTML = `<div class="fb bad">${srError(err)}${fails >= 2 ? `<div style="margin-top:8px">Máy vẫn chưa nghe được. Nếu con đã nói to, rõ cả câu thì bấm: <button class="btn ok" id="self2">Con đã nói xong ✓</button></div>` : ""}</div>`;
+            $("#fb").innerHTML = `<div class="fb bad">${srError(err)}${fails >= 2 || err === "service-not-allowed" || err === "audio-capture" ? `<div style="margin-top:8px">Máy chưa nghe được. Nếu con đã nói to, rõ cả câu thì bấm: <button class="btn ok" id="self2">Con đã nói xong ✓</button></div>` : ""}</div>`;
             const sb = $("#self2"); if (sb) sb.onclick = () => { fails = 0; record(70); cheer(); if (i < u.phrases.length - 1) i++; draw(); };
             return;
           }
