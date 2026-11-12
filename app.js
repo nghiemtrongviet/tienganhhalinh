@@ -101,19 +101,45 @@
   /* ---------- nhận dạng giọng nói ---------- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let activeRec = null;
+  // Nghe một câu. Không trông vào việc trình duyệt tự báo "nghe xong" (có máy không bao giờ báo):
+  // tự dừng khi im QUIET_MS sau lời cuối, tối đa MAX_MS, và nếu trình duyệt không trả lời lệnh dừng thì tự kết thúc.
+  const QUIET_MS = 1500, MAX_MS = 10000, KILL_MS = 1500;
   function listen(onDone, onState) {
-    stopSay();
+    stopSay(); stopRec();
     const r = new SR();
-    let alts = [], err = "";
-    r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 3;
-    r.onresult = (e) => { alts = [...e.results[0]].map((a) => a.transcript); };
+    let alts = [], interim = "", err = "", heard = false, finished = false, quietT = 0, maxT = 0, killT = 0;
+    const finish = () => {
+      if (finished) return; finished = true;
+      clearTimeout(quietT); clearTimeout(maxT); clearTimeout(killT);
+      if (activeRec === r) activeRec = null;
+      r.onresult = r.onerror = r.onend = null;
+      try { r.abort(); } catch { /* bỏ qua */ }
+      if (!alts.length && interim) alts = [interim]; // chưa có kết quả chốt thì dùng phần đã nghe được
+      onState(false);
+      if (alts.length) markVoice();
+      startMonitor();
+      if (!r.silent) onDone(alts, err || (heard ? "" : "no-speech"));
+    };
+    const stopSoon = () => { clearTimeout(quietT); try { r.stop(); } catch { /* bỏ qua */ } clearTimeout(killT); killT = setTimeout(finish, KILL_MS); };
+    r.lang = "en-US"; r.interimResults = true; r.maxAlternatives = 3; r.continuous = false;
+    r.onresult = (e) => {
+      heard = true;
+      const res = e.results[e.results.length - 1], list = [...res].map((x) => x.transcript).filter(Boolean);
+      if (!list.length) return;
+      if (res.isFinal) { alts = list; stopSoon(); }
+      else { interim = list[0]; clearTimeout(quietT); quietT = setTimeout(stopSoon, QUIET_MS); }
+    };
     r.onerror = (e) => { err = e.error; };
-    r.onend = () => { activeRec = null; onState(false); if (alts.length) markVoice(); startMonitor(); onDone(alts, err); };
+    r.onend = finish;
+    r.userStop = stopSoon;   // bấm nút lần nữa để dừng
+    r.finishNow = finish;
     activeRec = r;
     stopMonitor(); // nhả micro cho bộ nhận dạng giọng nói
-    try { r.start(); onState(true); } catch { onState(false); onDone([], "start"); }
+    maxT = setTimeout(stopSoon, MAX_MS);
+    try { r.start(); onState(true); } catch { err = "start"; finish(); }
   }
-  function stopRec() { if (activeRec) { try { activeRec.abort(); } catch { /* bỏ qua */ } activeRec = null; } }
+  // hủy khi chuyển trang: kết thúc ngay và không báo kết quả
+  function stopRec() { const r = activeRec; if (r) { r.silent = true; r.finishNow(); } }
   const srError = (err) => ({
     "not-allowed": "Trình duyệt chưa được cấp quyền micro. Hãy cho phép micro rồi thử lại.",
     "service-not-allowed": "Trình duyệt chặn dịch vụ nhận dạng giọng nói.",
@@ -523,7 +549,7 @@
 
   VIEWS.shadow = (u, pane) => {
     const p = P(u.id);
-    let i = Math.max(0, u.phrases.findIndex((_, k) => !(p.speak[k] >= 70)));
+    let i = Math.max(0, u.phrases.findIndex((_, k) => !(p.speak[k] >= 70))), fails = 0;
     const draw = () => {
       const [en, vi] = u.phrases[i];
       const best = p.speak[i];
@@ -544,11 +570,17 @@
       const record = (sc) => { if (!(p.speak[i] >= sc)) { p.speak[i] = sc; save(); refreshBar(); } };
       if (!SR) { $("#self").onclick = () => { record(100); if (i < u.phrases.length - 1) i++; draw(); }; return; }
       $("#rec").onclick = () => {
-        if (activeRec) { activeRec.stop(); return; }
+        if (activeRec) { activeRec.userStop(); return; }
         const btn = $("#rec");
         listen((alts, err) => {
           if (!$("#fb")) return;
-          if (!alts.length) { $("#fb").innerHTML = `<div class="fb bad">${srError(err)}</div>`; return; }
+          if (!alts.length) {
+            fails++;
+            $("#fb").innerHTML = `<div class="fb bad">${srError(err)}${fails >= 2 ? `<div style="margin-top:8px">Máy vẫn chưa nghe được. Nếu con đã nói to, rõ cả câu thì bấm: <button class="btn ok" id="self2">Con đã nói xong ✓</button></div>` : ""}</div>`;
+            const sb = $("#self2"); if (sb) sb.onclick = () => { fails = 0; record(70); cheer(); if (i < u.phrases.length - 1) i++; draw(); };
+            return;
+          }
+          fails = 0;
           const rs = alts.map((t) => ({ t, r: match(en, t) })).sort((a, b) => b.r.score - a.r.score)[0];
           const [cls, msg] = verdict(rs.r.score);
           record(rs.r.score);
@@ -631,7 +663,7 @@
     sendB.onclick = () => send(inp.value);
     inp.onkeydown = (e) => { if (e.key === "Enter") send(inp.value); };
     if (recB) recB.onclick = () => {
-      if (activeRec) { activeRec.stop(); return; }
+      if (activeRec) { activeRec.userStop(); return; }
       listen((alts, err) => {
         if (!pane.isConnected) return;
         if (!alts.length) return note(srError(err));
@@ -664,7 +696,7 @@
       $("#skip").onclick = () => { stopRec(); k++; turn(); };
       if (!SR) return;
       $("#rec").onclick = () => {
-        if (activeRec) { activeRec.stop(); return; }
+        if (activeRec) { activeRec.userStop(); return; }
         const btn = $("#rec");
         listen((alts, err) => {
           if (!$("#fb")) return;
@@ -962,7 +994,7 @@
         say(en, { rate: 0.85 });
         if (!SR) return;
         $("#rec").onclick = () => {
-          if (activeRec) { activeRec.stop(); return; }
+          if (activeRec) { activeRec.userStop(); return; }
           const btn = $("#rec");
           listen((alts, err) => {
             if (!$("#fb")) return;
