@@ -113,6 +113,7 @@ select.inp { width: auto; padding: 8px 10px; }
 @media (max-width: 560px) { .flash .w { font-size: 28px; } h1 { font-size: 22px; } }
 
 /* trò chơi */
+.tab.on[data-t=talk] { background: #0e8fb3; border-color: #0e8fb3; color: #fff; }
 .tab.on[data-t=game] { background: #d6336c; border-color: #d6336c; color: #fff; }
 .gamebar { font-size: 15px; margin-bottom: 8px; gap: 16px; }
 .stars { font-size: 40px; color: #f5b301; letter-spacing: 4px; }

@@ -153,11 +153,12 @@
   const TABS = {
     vocab: ["Từ vựng", { flash: "Thẻ ghi nhớ", list: "Danh sách", quiz: "Trắc nghiệm", spell: "Nghe – gõ từ" }],
     listen: ["Nghe", { video: "Video bài học", order: "Nghe – xếp câu", dict: "Chép chính tả", dlg: "Nghe hội thoại" }],
-    speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại", chat: "🤖 Trò chuyện với thầy Subeo" }],
+    speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại" }],
+    talk: ["💬 Trò chuyện", { chat: "Trò chuyện 5 phút với thầy Subeo" }],
     game: ["🎮 Trò chơi", { pic: "Nghe chọn hình", memory: "Lật thẻ ghép cặp", scramble: "Xếp chữ", balloon: "Bóng bay từ vựng" }]
   };
   // các chế độ dùng được cho từng unit (không có video thì ẩn mục video, không có hình thì ẩn trò chọn hình)
-  const modesFor = (u, tab) => Object.entries(TABS[tab][1]).filter(([k]) => !(k === "chat" && !AI_URL && !MIMI_URL) && !(k === "video" && !u.videos.length) && !(k === "pic" && !hasPics(u)) && !(k === "dict" && u.kids) && !(k === "order" && !u.kids));
+  const modesFor = (u, tab) => Object.entries(TABS[tab][1]).filter(([k]) => !(k === "chat" && !AI_URL && !(MIMI_URL && u.kids)) && !(k === "video" && !u.videos.length) && !(k === "pic" && !hasPics(u)) && !(k === "dict" && u.kids) && !(k === "order" && !u.kids));
   /* ----- học đúng thứ tự: Từ vựng → Nghe → Nói → Trò chơi, xong bước trước mới mở bước sau ----- */
   const QUIZ_PASS = 80;
   const STEPS = [
@@ -192,9 +193,9 @@
     if (a === "review") { window.scrollTo(0, 0); return reviewPage(); }
     if (!u) return home();
     const st = stage(u), cur = st < STEPS.length ? stepAt(u, st) : ["vocab", "flash"];
-    const t = TABS[tab] ? tab : cur[0];
+    const okTab = !!TABS[tab] && modesFor(u, tab).length > 0, t = okTab ? tab : cur[0];
     const ms = modesFor(u, t).map(([k]) => k);
-    const m = ms.includes(mode) ? mode : (!TABS[tab] ? cur[1] : ms.find((k) => isOpen(u, k)) || ms[0]);
+    const m = ms.includes(mode) ? mode : (!okTab ? cur[1] : ms.find((k) => isOpen(u, k)) || ms[0]);
     // chưa xong bước trước thì đưa về bước đang học
     if (!isOpen(u, m)) { location.replace(`#/u/${u.id}/${cur[0]}/${cur[1]}`); return; }
     unit(u, t, m);
@@ -230,7 +231,7 @@
   let curUnit = null, curTab = "", curMode = "";
   function navHtml(u, tab, mode) {
     const st = stage(u), all = st >= STEPS.length;
-    const tabs = Object.entries(TABS).map(([k, [name]]) => {
+    const tabs = Object.entries(TABS).filter(([k]) => modesFor(u, k).length).map(([k, [name]]) => {
       const first = modesFor(u, k)[0][0];
       return isOpen(u, first) ? `<a class="tab ${k === tab ? "on" : ""}" data-t="${k}" href="#/u/${u.id}/${k}">${name}</a>` : `<span class="tab locked" title="Học xong bước trước thì mới mở">🔒 ${name}</span>`;
     }).join("");
@@ -563,11 +564,11 @@
   /* ----- trò chuyện với trợ lý AI ----- */
   VIEWS.chat = (u, pane) => {
     if (!AI_URL) {
-      pane.innerHTML = `<div class="card center" style="padding:30px 18px"><div style="font-size:60px">🤖</div>
-        <div class="big">Trò chuyện với thầy Subeo</div>
-        <p>Thầy Subeo là trợ lý AI. Thầy sẽ hỏi con bằng tiếng Anh về chủ đề <b>${esc(u.title)}</b>, con trả lời bằng giọng nói hoặc gõ chữ.</p>
-        <p><a class="btn pri" href="${MIMI_URL}" target="_blank" rel="noopener">Mở trang thầy Subeo ›</a></p>
-        <p class="muted small">Trang mở ở thẻ mới và cần đăng nhập Claude bằng tài khoản của bố mẹ. Trong trang đó, con chọn <b>${uname(u)}</b> rồi bấm “Bắt đầu nói chuyện”.</p></div>`;
+      pane.innerHTML = `<div class="card center" style="padding:30px 18px"><div style="font-size:60px">💬</div>
+        <div class="big">Trò chuyện 5 phút với thầy Subeo</div>
+        <p>Thầy Subeo là trợ lý AI. Thầy nói chuyện mặt đối mặt với con bằng tiếng Anh trong <b>5 phút</b>, đi lần lượt qua các mẫu câu của bài <b>${esc(u.title)}</b>. Con trả lời bằng giọng nói hoặc gõ chữ.</p>
+        <p><a class="btn pri" href="${MIMI_URL}#unit-${u.id - 100}" target="_blank" rel="noopener">▶ Vào buổi trò chuyện ${uname(u)}</a></p>
+        <p class="muted small">Trang mở ở thẻ mới và cần đăng nhập Claude bằng tài khoản của bố mẹ. Nếu chưa đúng bài, con chọn <b>${uname(u)}</b> ở ô Chủ đề rồi bấm “Bắt đầu buổi 5 phút”.</p></div>`;
       return;
     }
     const msgs = [];           // {role: "assistant" | "user", text}

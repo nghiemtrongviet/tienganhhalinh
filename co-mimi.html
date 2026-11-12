@@ -58,7 +58,7 @@
 
 <div class="wrap">
   <header>
-    <div class="who"><h1>Thầy Subeo luyện nói</h1><div class="sub">Nói tiếng Anh mặt đối mặt cùng trợ lý AI. <span id="turn"></span></div></div>
+    <div class="who"><h1>Thầy Subeo luyện nói</h1><div class="sub">Nói tiếng Anh mặt đối mặt cùng trợ lý AI. <b id="turn"></b></div></div>
     <button class="btn ghost" id="again" hidden>↻ Bắt đầu lại</button>
   </header>
   <div class="pick"><label for="unit">Chủ đề:</label><select id="unit"></select></div>
@@ -73,14 +73,14 @@
     <input id="text" maxlength="200" autocomplete="off" placeholder="Gõ câu tiếng Anh ở đây" disabled>
     <button class="btn" id="send" disabled>Gửi</button>
   </div>
-  <div class="foot">Không nói tên trường, địa chỉ hay số điện thoại. Mỗi lần trò chuyện 15 lượt.</div>
+  <div class="foot">Mỗi buổi trò chuyện dài 5 phút, theo nội dung unit đã chọn. Không nói tên trường, địa chỉ hay số điện thoại.</div>
 </div>
 
 <script src="kids.js"></script>
 <script>
 (() => {
   "use strict";
-  const UNITS = window.KIDS || [], TURNS = 15;
+  const UNITS = window.KIDS || [], LESSON = 5 * 60; // một buổi trò chuyện dài 5 phút
   const $ = (id) => document.getElementById(id);
   const log = $("log"), sayEl = $("say"), mineEl = $("mine"), faceEl = $("face"), stateEl = $("state"), text = $("text"), sendB = $("send"), micB = $("mic"), unitSel = $("unit");
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -88,11 +88,20 @@
 
   unitSel.innerHTML = UNITS.map((u) => `<option value="${u.id}">Unit ${u.id - 100}: ${esc(u.title)} – ${esc(u.vi)}</option>`).join("");
   if (store.get("mimi-unit")) unitSel.value = store.get("mimi-unit");
+  // web học mở trang này kèm #unit-5 để chọn sẵn unit đang học
+  const fromHash = () => { const m = /^#unit-(\d+)$/.exec(location.hash); if (m && UNITS.some((u) => u.id === 100 + +m[1])) unitSel.value = String(100 + +m[1]); };
+  fromHash();
   const unit = () => UNITS.find((u) => String(u.id) === unitSel.value) || UNITS[0];
 
-  const RULES = (u) => [
+  const mmss = (sec) => Math.floor(sec / 60) + ":" + String(Math.floor(sec) % 60).padStart(2, "0");
+  const RULES = (u, sec, closing) => [
     "You are Mr Subeo (the child calls you teacher Subeo), a warm, patient English teacher and conversation partner for a Vietnamese child in grade 4 (about 9-10 years old, beginner level A1).",
     "The child practises speaking; their words reach you through speech recognition, so they may contain wrong or missing words. Guess the meaning kindly and never comment on spelling or punctuation.",
+    "This is one 5-minute speaking lesson on the unit below. Lesson plan:",
+    "- Start: greet the child and ask one easy warm-up question about the unit topic.",
+    "- Main part: go through the unit sentence patterns in order, one per turn. Ask the question pattern so the child answers with the matching answer pattern and a unit word. After a good answer move on to the next pattern; after a weak answer let the child try once more, then move on.",
+    "- When about 4 minutes have passed: a quick review. Ask the child to say their favourite sentence from today.",
+    "- Keep your turns short so the child does most of the talking.",
     "How to talk:",
     "- Use very simple English: short sentences, common words, present tense where possible.",
     "- Each turn: one short reaction to what the child said, then exactly one easy question that keeps the conversation going. At most two short sentences plus the question.",
@@ -112,10 +121,14 @@
     "Unit words: " + u.vocab.map((w) => w[0]).join(", "),
     "Unit sentence patterns: " + u.phrases.map((p) => p[0]).join(" | "),
     "",
+    "Lesson clock: " + mmss(sec) + " of " + mmss(LESSON) + " have passed.",
+    closing ? "THE LESSON TIME IS OVER. Your next reply is the last one: react briefly to what the child just said, tell them one thing they did well today, and say goodbye. Do not ask a question." : "",
+    "",
     "(The child has just sat down. Greet them and ask your first easy question about the unit topic.)"
   ].join("\n");
 
-  let sample = null, tts = null, dict = null, msgs = [], busy = false, started = false, turns = 0, heard = "";
+  let sample = null, tts = null, dict = null, msgs = [], busy = false, started = false, ended = false, t0 = 0, heard = "";
+  const elapsed = () => (started ? (Date.now() - t0) / 1000 : 0);
   const split = (t) => { const ls = t.split("\n").map((x) => x.trim()).filter(Boolean); return { en: ls.filter((x) => !x.startsWith("💡")).join(" "), tip: ls.filter((x) => x.startsWith("💡")).join(" ") }; };
 
   // khuôn mặt: ô 0 là mặt nghỉ, ô 1..26 là đang nói (chạy tới rồi chạy lui cho liền mạch)
@@ -144,7 +157,7 @@
     } catch { talk(true); estT = setTimeout(() => talk(false), 800 + en.length * 70); } // không có giọng đọc: vẫn cho mặt cử động
   }
   function draw(extra) {
-    const last = msgs.filter((m) => m.role === "assistant").pop(), mine = msgs.length && msgs[msgs.length - 1].role === "user" ? msgs[msgs.length - 1] : null;
+    const last = msgs.filter((m) => m.role === "assistant").pop(), tail = msgs[msgs.length - 1], mine = tail && tail.role === "user" && !tail.hidden ? tail : null;
     if (extra != null) sayEl.innerHTML = extra;
     else if (last) {
       const { en, tip } = split(last.content);
@@ -152,27 +165,39 @@
       $("replay").onclick = () => speak(en);
     }
     mineEl.hidden = !mine; if (mine) mineEl.textContent = "Con nói: " + mine.content;
-    log.innerHTML = msgs.map((m) => m.role === "user" ? `<div class="bub me">${esc(m.content)}</div>` : `<div class="bub bot">${esc(split(m.content).en)}</div>`).join("");
+    log.innerHTML = msgs.filter((m) => !m.hidden).map((m) => m.role === "user" ? `<div class="bub me">${esc(m.content)}</div>` : `<div class="bub bot">${esc(split(m.content).en)}</div>`).join("");
     $("hist").hidden = msgs.length < 3;
-    const ended = turns >= TURNS && !busy, off = busy || ended || !started;
+    const off = busy || ended || !started;
     text.disabled = sendB.disabled = micB.disabled = off;
-    $("turn").textContent = turns ? `Lượt ${Math.min(turns, TURNS)}/${TURNS}` : "";
+    clock();
     $("again").hidden = !started;
   }
+  function clock() { $("turn").textContent = !started ? "" : ended ? "Hết giờ ✓" : "⏱ Còn " + mmss(Math.max(0, LESSON - elapsed())); }
+  // mỗi giây: cập nhật đồng hồ; hết 5 phút mà thầy đang chờ con nói thì thầy tự chào kết thúc
+  setInterval(() => {
+    if (!started || ended) return;
+    clock();
+    if (elapsed() >= LESSON && !busy && !hearing && msgs.length && msgs[msgs.length - 1].role === "assistant") {
+      if (dict && dict.active()) return;
+      msgs.push({ role: "user", content: "(The lesson time is over.)", hidden: true });
+      ask();
+    }
+  }, 1000);
   const note = (t) => `<div class="note">${esc(t)}</div>`;
   const startBtn = (label) => `<button class="btn sun start" id="start">${label}</button>`;
-  const intro = () => { draw(note("Chọn unit con đang học rồi bấm nút bên dưới. Thầy Subeo sẽ hỏi, con trả lời bằng tiếng Anh nhé!") + startBtn("▶ Bắt đầu nói chuyện")); $("start").onclick = begin; };
+  const intro = () => { draw(note("Chọn unit con đang học rồi bấm nút bên dưới. Thầy Subeo sẽ nói chuyện với con 5 phút về bài học, con trả lời bằng tiếng Anh nhé!") + startBtn("▶ Bắt đầu buổi 5 phút")); $("start").onclick = begin; };
 
   async function ask() {
     talk(false); busy = true; draw(msgs.length ? null : note("Chờ một chút nhé…")); mood("Đang nghĩ…");
     let reply = "", code = "";
+    const closing = msgs.length > 0 && elapsed() >= LESSON;
     try {
-      const r = await sample([{ role: "user", content: RULES(unit()) }].concat(msgs.slice(-12)), { cache: false });
+      const r = await sample([{ role: "user", content: RULES(unit(), Math.min(elapsed(), LESSON), closing) }].concat(msgs.slice(-12).map((m) => ({ role: m.role, content: m.content }))), { cache: false });
       reply = String(r.text || "").trim();
     } catch (e) { code = (e && e.code) || "error"; }
     busy = false; mood("");
     if (!reply) {
-      if (msgs.length && msgs[msgs.length - 1].role === "user") { text.value = msgs.pop().content; turns--; }
+      if (msgs.length && msgs[msgs.length - 1].role === "user") { const m = msgs.pop(); if (!m.hidden) text.value = m.content; else t0 += 20000; } // lời chào kết thúc lỗi thì 20 giây sau thử lại
       const why = code === "not_granted" ? "Trang chưa được phép hỏi Claude. Bố mẹ hãy mở lại trang và bấm cho phép."
         : code === "rate_limited" ? "Thầy Subeo đang bận một chút. Con chờ vài giây rồi gửi lại nhé."
         : "Chưa kết nối được với thầy Subeo. Con thử lại nhé.";
@@ -181,27 +206,29 @@
       return;
     }
     msgs.push({ role: "assistant", content: reply });
+    if (closing) ended = true;
     draw();
-    if (turns >= TURNS) sayEl.insertAdjacentHTML("beforeend", note("Con đã trò chuyện 15 lượt rồi, giỏi lắm! Bấm “Bắt đầu lại” nếu muốn nói tiếp."));
+    if (ended) sayEl.insertAdjacentHTML("beforeend", note("Hết 5 phút rồi, con giỏi lắm! Bấm “Bắt đầu lại” nếu muốn học thêm một buổi nữa."));
     speak(split(reply).en);
   }
   function send(t) {
     t = String(t || "").trim().slice(0, 200);
-    if (!t || busy || !started || turns >= TURNS) return;
+    if (!t || busy || !started || ended) return;
     if (tts && tts.stop) tts.stop(); else { try { speechSynthesis.cancel(); } catch { /* bỏ qua */ } }
     talk(false);
-    msgs.push({ role: "user", content: t }); turns++;
+    msgs.push({ role: "user", content: t });
     text.value = "";
     ask();
   }
   function begin() {
     if (!sample) { draw(note("Trang này cần mở trong claude.ai bằng tài khoản Claude của bố mẹ thì thầy Subeo mới trả lời được.")); return; }
     store.set("mimi-unit", unitSel.value);
-    msgs = []; turns = 0; started = true;
+    msgs = []; ended = false; started = true; t0 = Date.now();
     ask();
   }
   intro();
   $("again").onclick = () => { if (busy) return; if (dict && dict.active()) dict.stop().catch(() => {}); begin(); };
+  window.addEventListener("hashchange", () => { fromHash(); if (started && !busy) begin(); });
   unitSel.onchange = () => { store.set("mimi-unit", unitSel.value); if (started && !busy) begin(); };
   sendB.onclick = () => send(text.value);
   text.onkeydown = (e) => { if (e.key === "Enter") send(text.value); };
