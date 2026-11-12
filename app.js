@@ -157,7 +157,7 @@
     game: ["🎮 Trò chơi", { pic: "Nghe chọn hình", memory: "Lật thẻ ghép cặp", scramble: "Xếp chữ", balloon: "Bóng bay từ vựng" }]
   };
   // các chế độ dùng được cho từng unit (không có video thì ẩn mục video, không có hình thì ẩn trò chọn hình)
-  const modesFor = (u, tab) => Object.entries(TABS[tab][1]).filter(([k]) => !(k === "chat" && !AI_URL) && !(k === "video" && !u.videos.length) && !(k === "pic" && !hasPics(u)) && !(k === "dict" && u.kids) && !(k === "order" && !u.kids));
+  const modesFor = (u, tab) => Object.entries(TABS[tab][1]).filter(([k]) => !(k === "chat" && !AI_URL && !MIMI_URL) && !(k === "video" && !u.videos.length) && !(k === "pic" && !hasPics(u)) && !(k === "dict" && u.kids) && !(k === "order" && !u.kids));
   /* ----- học đúng thứ tự: Từ vựng → Nghe → Nói → Trò chơi, xong bước trước mới mở bước sau ----- */
   const QUIZ_PASS = 80;
   const STEPS = [
@@ -180,6 +180,8 @@
   const VIEWS = {};
   // Địa chỉ máy chủ phụ gọi AI (Google Apps Script, xem tro-ly-ao.gs). Để trống thì ẩn mục trò chuyện.
   const AI_URL = "", CHAT_TURNS = 15;
+  // Trang cô Mimi chạy trên claude.ai, dùng Claude của tài khoản bố mẹ (chỉ tài khoản đó mở được).
+  const MIMI_URL = "https://claude.ai/artifact/QCHN2iJEx9yw16erL5iWMw";
   function route() {
     stopSay(); stopRec(); clearTimers();
     if (locked()) return showLock();
@@ -560,6 +562,14 @@
 
   /* ----- trò chuyện với trợ lý AI ----- */
   VIEWS.chat = (u, pane) => {
+    if (!AI_URL) {
+      pane.innerHTML = `<div class="card center" style="padding:30px 18px"><div style="font-size:60px">🤖</div>
+        <div class="big">Trò chuyện với cô Mimi</div>
+        <p>Cô Mimi là trợ lý AI. Cô sẽ hỏi con bằng tiếng Anh về chủ đề <b>${esc(u.title)}</b>, con trả lời bằng giọng nói hoặc gõ chữ.</p>
+        <p><a class="btn pri" href="${MIMI_URL}" target="_blank" rel="noopener">Mở trang cô Mimi ›</a></p>
+        <p class="muted small">Trang mở ở thẻ mới và cần đăng nhập Claude bằng tài khoản của bố mẹ. Trong trang đó, con chọn <b>${uname(u)}</b> rồi bấm “Bắt đầu nói chuyện”.</p></div>`;
+      return;
+    }
     const msgs = [];           // {role: "assistant" | "user", text}
     let busy = false, turns = 0, ended = false;
     // tách câu tiếng Anh (để đọc to) và dòng gợi ý tiếng Việt bắt đầu bằng 💡
