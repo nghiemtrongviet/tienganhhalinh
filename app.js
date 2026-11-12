@@ -153,7 +153,7 @@
   const TABS = {
     vocab: ["Từ vựng", { flash: "Thẻ ghi nhớ", list: "Danh sách", quiz: "Trắc nghiệm", spell: "Nghe – gõ từ" }],
     listen: ["Nghe", { video: "Video bài học", order: "Nghe – xếp câu", dict: "Chép chính tả", dlg: "Nghe hội thoại" }],
-    speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại", chat: "🤖 Trò chuyện với cô Mimi" }],
+    speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại", chat: "🤖 Trò chuyện với thầy Subeo" }],
     game: ["🎮 Trò chơi", { pic: "Nghe chọn hình", memory: "Lật thẻ ghép cặp", scramble: "Xếp chữ", balloon: "Bóng bay từ vựng" }]
   };
   // các chế độ dùng được cho từng unit (không có video thì ẩn mục video, không có hình thì ẩn trò chọn hình)
@@ -180,7 +180,7 @@
   const VIEWS = {};
   // Địa chỉ máy chủ phụ gọi AI (Google Apps Script, xem tro-ly-ao.gs). Để trống thì ẩn mục trò chuyện.
   const AI_URL = "", CHAT_TURNS = 15;
-  // Trang cô Mimi chạy trên claude.ai, dùng Claude của tài khoản bố mẹ (chỉ tài khoản đó mở được).
+  // Trang thầy Subeo chạy trên claude.ai, dùng Claude của tài khoản bố mẹ (chỉ tài khoản đó mở được).
   const MIMI_URL = "https://claude.ai/artifact/QCHN2iJEx9yw16erL5iWMw";
   function route() {
     stopSay(); stopRec(); clearTimers();
@@ -564,9 +564,9 @@
   VIEWS.chat = (u, pane) => {
     if (!AI_URL) {
       pane.innerHTML = `<div class="card center" style="padding:30px 18px"><div style="font-size:60px">🤖</div>
-        <div class="big">Trò chuyện với cô Mimi</div>
-        <p>Cô Mimi là trợ lý AI. Cô sẽ hỏi con bằng tiếng Anh về chủ đề <b>${esc(u.title)}</b>, con trả lời bằng giọng nói hoặc gõ chữ.</p>
-        <p><a class="btn pri" href="${MIMI_URL}" target="_blank" rel="noopener">Mở trang cô Mimi ›</a></p>
+        <div class="big">Trò chuyện với thầy Subeo</div>
+        <p>Thầy Subeo là trợ lý AI. Thầy sẽ hỏi con bằng tiếng Anh về chủ đề <b>${esc(u.title)}</b>, con trả lời bằng giọng nói hoặc gõ chữ.</p>
+        <p><a class="btn pri" href="${MIMI_URL}" target="_blank" rel="noopener">Mở trang thầy Subeo ›</a></p>
         <p class="muted small">Trang mở ở thẻ mới và cần đăng nhập Claude bằng tài khoản của bố mẹ. Trong trang đó, con chọn <b>${uname(u)}</b> rồi bấm “Bắt đầu nói chuyện”.</p></div>`;
       return;
     }
@@ -574,10 +574,10 @@
     let busy = false, turns = 0, ended = false;
     // tách câu tiếng Anh (để đọc to) và dòng gợi ý tiếng Việt bắt đầu bằng 💡
     const split = (t) => { const ls = t.split("\n").map((x) => x.trim()).filter(Boolean); return { en: ls.filter((x) => !x.startsWith("💡")).join(" "), tip: ls.filter((x) => x.startsWith("💡")).join(" ") }; };
-    const ERR = { limit: "Hôm nay cô Mimi đã nói chuyện đủ rồi. Mai mình gặp lại nhé!", busy: "Cô Mimi đang bận một chút. Con thử lại sau vài giây nhé.", nokey: "Bố mẹ chưa cài khóa cho cô Mimi.", auth: "Khóa của cô Mimi chưa đúng. Con nhờ bố mẹ kiểm tra nhé." };
+    const ERR = { limit: "Hôm nay thầy Subeo đã nói chuyện đủ rồi. Mai mình gặp lại nhé!", busy: "Thầy Subeo đang bận một chút. Con thử lại sau vài giây nhé.", nokey: "Bố mẹ chưa cài khóa cho thầy Subeo.", auth: "Khóa của thầy Subeo chưa đúng. Con nhờ bố mẹ kiểm tra nhé." };
     pane.innerHTML = `${SR ? "" : `<div class="note">Trình duyệt này không nghe được giọng nói. Con hãy gõ câu trả lời, hoặc mở trang bằng <b>Chrome</b> để nói bằng micro.</div>`}
-      <div class="card chat"><div class="row"><div class="big">🤖 Cô Mimi</div><span class="count" id="cturn"></span><span class="spacer"></span><button class="btn" id="cnew">↻ Bắt đầu lại</button></div>
-        <div class="muted small">Cô Mimi là trợ lý AI. Con nói tiếng Anh với cô về chủ đề: <b>${esc(u.title)}</b>. Không nói tên trường, địa chỉ hay số điện thoại nhé.</div>
+      <div class="card chat"><div class="row"><div class="big">🤖 Thầy Subeo</div><span class="count" id="cturn"></span><span class="spacer"></span><button class="btn" id="cnew">↻ Bắt đầu lại</button></div>
+        <div class="muted small">Thầy Subeo là trợ lý AI. Con nói tiếng Anh với thầy về chủ đề: <b>${esc(u.title)}</b>. Không nói tên trường, địa chỉ hay số điện thoại nhé.</div>
         <div id="clog" class="clog" aria-live="polite"></div>
         <div class="row cin">${SR ? `<button class="btn rec" id="crec">🎙 Bấm để nói</button>` : ""}
           <input id="ctext" maxlength="200" autocomplete="off" placeholder="…hoặc gõ câu tiếng Anh ở đây"><button class="btn pri" id="csend">Gửi</button></div></div>`;
@@ -587,7 +587,7 @@
         if (m.role === "user") return `<div class="bub me">${esc(m.text)}</div>`;
         const { en, tip } = split(m.text);
         return `<div class="bub bot"><button class="icon" data-k="${k}" title="Nghe lại">🔊</button><div><div>${esc(en)}</div>${tip ? `<div class="tip">${esc(tip)}</div>` : ""}</div></div>`;
-      }).join("") + (wait ? `<div class="bub bot wait">Cô Mimi đang nghĩ…</div>` : "");
+      }).join("") + (wait ? `<div class="bub bot wait">Thầy Subeo đang nghĩ…</div>` : "");
       on(".bub .icon", "click", (e) => say(split(msgs[+e.currentTarget.dataset.k].text).en, { rate: 0.85 }), log);
       log.scrollTop = log.scrollHeight;
       $("#cturn").textContent = turns ? `Lượt ${turns}/${CHAT_TURNS}` : "";
@@ -608,7 +608,7 @@
       if (!pane.isConnected) return;
       if (!reply) {
         if (msgs.length && msgs[msgs.length - 1].role === "user") { inp.value = msgs.pop().text; turns--; } // trả lại câu vừa nói để gửi lại
-        draw(false); note(ERR[err] || "Chưa kết nối được với cô Mimi. Con kiểm tra mạng rồi thử lại nhé.");
+        draw(false); note(ERR[err] || "Chưa kết nối được với thầy Subeo. Con kiểm tra mạng rồi thử lại nhé.");
         if (!msgs.length) { inp.disabled = sendB.disabled = true; if (recB) recB.disabled = true; }
         return;
       }

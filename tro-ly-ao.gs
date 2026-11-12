@@ -1,5 +1,5 @@
 /**
- * Máy chủ phụ cho "Trò chuyện với cô Mimi" (trợ lý AI luyện giao tiếp tiếng Anh).
+ * Máy chủ phụ cho "Trò chuyện với thầy Subeo" (trợ lý AI luyện giao tiếp tiếng Anh).
  * Trang web gửi lời của bé lên đây; script này giữ khóa API và gọi Claude, rồi trả câu đáp về.
  * Khóa API KHÔNG ghi trong file này: đặt ở Project Settings > Script properties,
  *   tên thuộc tính:  ANTHROPIC_API_KEY     giá trị: khóa sk-ant-... của bố mẹ
@@ -14,7 +14,7 @@ var MAX_HISTORY = 12;    // chỉ gửi 12 lượt nói gần nhất
 var MAX_CHARS = 300;     // mỗi lượt nói dài tối đa 300 ký tự
 
 var SYSTEM = [
-  "You are Miss Mimi, a warm, patient English conversation partner for a Vietnamese child in grade 4 (about 9-10 years old, beginner level A1).",
+  "You are Mr Subeo (the child calls you teacher Subeo), a warm, patient English teacher and conversation partner for a Vietnamese child in grade 4 (about 9-10 years old, beginner level A1).",
   "The child practises speaking; what they say reaches you through speech recognition, so it may contain wrong or missing words. Guess the meaning kindly and never comment on spelling or punctuation.",
   "",
   "How to talk:",
@@ -98,7 +98,7 @@ function call(key, body, withFallback) {
   });
 }
 
-function doGet() { return out({ ok: true, info: "Cô Mimi đang sẵn sàng." }); }
+function doGet() { return out({ ok: true, info: "Thầy Subeo đang sẵn sàng." }); }
 
 function out(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);

@@ -1,8 +1,8 @@
-<title>Cô Mimi luyện nói</title>
+<title>Thầy Subeo luyện nói</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;800&display=swap">
 <style>
-  /* Bố cục: cuộc gọi video đối mặt. Khuôn mặt bạn nhỏ chiếm phần lớn màn hình, câu đang nói hiện ngay dưới như phụ đề, ô nói/gõ ở đáy. */
+  /* Bố cục: cuộc gọi video đối mặt. Khuôn mặt thầy Subeo chiếm phần lớn màn hình, câu đang nói hiện ngay dưới như phụ đề, ô nói/gõ ở đáy. */
   :root {
     --bg: #eaf6fb; --card: #ffffff; --ink: #14323f; --muted: #5b7683; --line: #cfe3ec;
     --sea: #0e8fb3; --sea-soft: #d6eff7; --sun: #ffc93c; --sun-ink: #5a4200; --leaf: #dff3e3; --leaf-ink: #1f6b38; --warn: #fff1c9; --hear: #d6336c;
@@ -58,12 +58,12 @@
 
 <div class="wrap">
   <header>
-    <div class="who"><h1>Cô Mimi luyện nói</h1><div class="sub">Nói tiếng Anh mặt đối mặt cùng trợ lý AI. <span id="turn"></span></div></div>
+    <div class="who"><h1>Thầy Subeo luyện nói</h1><div class="sub">Nói tiếng Anh mặt đối mặt cùng trợ lý AI. <span id="turn"></span></div></div>
     <button class="btn ghost" id="again" hidden>↻ Bắt đầu lại</button>
   </header>
   <div class="pick"><label for="unit">Chủ đề:</label><select id="unit"></select></div>
   <div id="stage">
-    <div class="face" id="face" role="img" aria-label="Bạn nhỏ đang nói chuyện với con"><span class="state" id="state" hidden></span></div>
+    <div class="face" id="face" role="img" aria-label="Thầy Subeo đang nói chuyện với con"><span class="state" id="state" hidden></span></div>
     <div id="say" aria-live="polite"></div>
     <div id="mine" hidden></div>
   </div>
@@ -91,7 +91,7 @@
   const unit = () => UNITS.find((u) => String(u.id) === unitSel.value) || UNITS[0];
 
   const RULES = (u) => [
-    "You are Miss Mimi, a warm, patient English conversation partner for a Vietnamese child in grade 4 (about 9-10 years old, beginner level A1).",
+    "You are Mr Subeo (the child calls you teacher Subeo), a warm, patient English teacher and conversation partner for a Vietnamese child in grade 4 (about 9-10 years old, beginner level A1).",
     "The child practises speaking; their words reach you through speech recognition, so they may contain wrong or missing words. Guess the meaning kindly and never comment on spelling or punctuation.",
     "How to talk:",
     "- Use very simple English: short sentences, common words, present tense where possible.",
@@ -161,7 +161,7 @@
   }
   const note = (t) => `<div class="note">${esc(t)}</div>`;
   const startBtn = (label) => `<button class="btn sun start" id="start">${label}</button>`;
-  const intro = () => { draw(note("Chọn unit con đang học rồi bấm nút bên dưới. Bạn nhỏ sẽ hỏi, con trả lời bằng tiếng Anh nhé!") + startBtn("▶ Bắt đầu nói chuyện")); $("start").onclick = begin; };
+  const intro = () => { draw(note("Chọn unit con đang học rồi bấm nút bên dưới. Thầy Subeo sẽ hỏi, con trả lời bằng tiếng Anh nhé!") + startBtn("▶ Bắt đầu nói chuyện")); $("start").onclick = begin; };
 
   async function ask() {
     talk(false); busy = true; draw(msgs.length ? null : note("Chờ một chút nhé…")); mood("Đang nghĩ…");
@@ -174,8 +174,8 @@
     if (!reply) {
       if (msgs.length && msgs[msgs.length - 1].role === "user") { text.value = msgs.pop().content; turns--; }
       const why = code === "not_granted" ? "Trang chưa được phép hỏi Claude. Bố mẹ hãy mở lại trang và bấm cho phép."
-        : code === "rate_limited" ? "Cô Mimi đang bận một chút. Con chờ vài giây rồi gửi lại nhé."
-        : "Chưa kết nối được với cô Mimi. Con thử lại nhé.";
+        : code === "rate_limited" ? "Thầy Subeo đang bận một chút. Con chờ vài giây rồi gửi lại nhé."
+        : "Chưa kết nối được với thầy Subeo. Con thử lại nhé.";
       draw(note(why) + (msgs.length ? "" : startBtn("▶ Thử lại")));
       const s = $("start"); if (s) s.onclick = begin;
       return;
@@ -195,7 +195,7 @@
     ask();
   }
   function begin() {
-    if (!sample) { draw(note("Trang này cần mở trong claude.ai bằng tài khoản Claude của bố mẹ thì cô Mimi mới trả lời được.")); return; }
+    if (!sample) { draw(note("Trang này cần mở trong claude.ai bằng tài khoản Claude của bố mẹ thì thầy Subeo mới trả lời được.")); return; }
     store.set("mimi-unit", unitSel.value);
     msgs = []; turns = 0; started = true;
     ask();
