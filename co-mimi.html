@@ -2,10 +2,10 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;800&display=swap">
 <style>
-  /* Bố cục: một cột hẹp như màn hình trò chuyện; tên cô Mimi và chủ đề ở trên, khung chat giữa, ô nói/gõ dính đáy. */
+  /* Bố cục: cuộc gọi video đối mặt. Khuôn mặt bạn nhỏ chiếm phần lớn màn hình, câu đang nói hiện ngay dưới như phụ đề, ô nói/gõ ở đáy. */
   :root {
     --bg: #eaf6fb; --card: #ffffff; --ink: #14323f; --muted: #5b7683; --line: #cfe3ec;
-    --sea: #0e8fb3; --sea-soft: #d6eff7; --sun: #ffc93c; --sun-ink: #5a4200; --leaf: #dff3e3; --leaf-ink: #1f6b38; --warn: #fff1c9;
+    --sea: #0e8fb3; --sea-soft: #d6eff7; --sun: #ffc93c; --sun-ink: #5a4200; --leaf: #dff3e3; --leaf-ink: #1f6b38; --warn: #fff1c9; --hear: #d6336c;
     --display: "Baloo 2", "Nunito", system-ui, sans-serif; --body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
@@ -17,9 +17,8 @@
   html, body { height: 100%; }
   body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.45;
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px; box-sizing: border-box; }
-  .wrap { max-width: 640px; margin: 0 auto; height: 100%; display: flex; flex-direction: column; gap: 12px; }
+  .wrap { max-width: 640px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; gap: 12px; }
   header { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-  .face { width: 54px; height: 54px; border-radius: 50%; background: var(--sun); display: grid; place-items: center; font-size: 30px; flex: none; }
   h1 { font-family: var(--display); font-weight: 800; font-size: 28px; line-height: 1.1; margin: 0; text-wrap: balance; }
   .sub { color: var(--muted); font-size: 14px; }
   .who { flex: 1; min-width: 0; }
@@ -27,12 +26,22 @@
   select { padding: 10px 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); max-width: 100%; }
   .pick { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .pick label { font-weight: 800; font-size: 14px; }
-  #log { flex: 1; min-height: 160px; overflow-y: auto; background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-  .bub { max-width: 88%; padding: 10px 14px; border-radius: 18px; font-size: 19px; }
-  .bot { align-self: flex-start; background: var(--sea-soft); border-bottom-left-radius: 5px; display: flex; gap: 8px; align-items: flex-start; }
+  #stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+  .face { flex: none; height: clamp(180px, 50vh, 480px); aspect-ratio: 3 / 4; max-width: 100%; border-radius: 26px; border: 5px solid var(--line); background: var(--card) url(face.jpg) 0 0 / 900% 300% no-repeat; position: relative; transition: border-color .2s, box-shadow .2s; }
+  .face.talk { border-color: var(--sun); box-shadow: 0 0 0 6px color-mix(in srgb, var(--sun) 35%, transparent); }
+  .face.hear { border-color: var(--hear); box-shadow: 0 0 0 6px color-mix(in srgb, var(--hear) 30%, transparent); }
+  .face .state { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); background: color-mix(in srgb, var(--ink) 78%, transparent); color: var(--bg); font-size: 14px; font-weight: 800; padding: 4px 12px; border-radius: 99px; white-space: nowrap; }
+  #say { width: 100%; box-sizing: border-box; background: var(--card); border: 2px solid var(--line); border-radius: 18px; padding: 12px 14px; font-size: 21px; font-weight: 600; text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+  #say .line { display: flex; gap: 8px; align-items: flex-start; justify-content: center; }
+  #mine { color: var(--leaf-ink); background: var(--leaf); border-radius: 12px; padding: 4px 12px; font-size: 16px; font-weight: 600; max-width: 100%; box-sizing: border-box; }
+  details { font-size: 14px; color: var(--muted); }
+  summary { cursor: pointer; font-weight: 800; }
+  #log { max-height: 30vh; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 2px; }
+  .bub { max-width: 88%; padding: 8px 12px; border-radius: 16px; font-size: 16px; color: var(--ink); }
+  .bot { align-self: flex-start; background: var(--sea-soft); border-bottom-left-radius: 5px; }
   .me { align-self: flex-end; background: var(--leaf); color: var(--leaf-ink); border-bottom-right-radius: 5px; font-weight: 600; }
   .tip { margin-top: 6px; font-size: 15px; background: var(--warn); border-radius: 10px; padding: 4px 8px; }
-  .note { align-self: center; text-align: center; color: var(--muted); font-size: 15px; max-width: 34ch; }
+  .note { color: var(--muted); font-size: 16px; font-weight: 400; max-width: 34ch; }
   .wait { color: var(--muted); font-style: italic; }
   .spk { border: 0; background: transparent; font-size: 20px; cursor: pointer; padding: 0 2px; border-radius: 8px; }
   .bar { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -40,24 +49,25 @@
   .btn { border: 0; border-radius: 14px; padding: 12px 18px; font-weight: 800; cursor: pointer; background: var(--sea); color: #fff; }
   .btn.sun { background: var(--sun); color: var(--sun-ink); }
   .btn.ghost { background: transparent; color: var(--sea); border: 2px solid var(--line); padding: 8px 12px; font-size: 14px; }
-  .btn.live { background: #d6336c; color: #fff; }
+  .btn.live { background: var(--hear); color: #fff; }
   .btn:disabled, input:disabled { opacity: .5; cursor: not-allowed; }
   :focus-visible { outline: 3px solid var(--sun); outline-offset: 2px; }
-  .start { align-self: center; font-size: 20px; padding: 14px 26px; }
+  .start { font-size: 20px; padding: 14px 26px; }
   .foot { color: var(--muted); font-size: 13px; text-align: center; }
 </style>
 
 <div class="wrap">
   <header>
-    <div class="face" aria-hidden="true">🤖</div>
-    <div class="who"><h1>Cô Mimi luyện nói</h1><div class="sub">Trợ lý AI nói tiếng Anh cùng con. <span id="turn"></span></div></div>
+    <div class="who"><h1>Cô Mimi luyện nói</h1><div class="sub">Nói tiếng Anh mặt đối mặt cùng trợ lý AI. <span id="turn"></span></div></div>
     <button class="btn ghost" id="again" hidden>↻ Bắt đầu lại</button>
   </header>
   <div class="pick"><label for="unit">Chủ đề:</label><select id="unit"></select></div>
-  <div id="log" aria-live="polite">
-    <div class="note">Chọn unit con đang học rồi bấm nút bên dưới. Cô Mimi sẽ hỏi, con trả lời bằng tiếng Anh nhé!</div>
-    <button class="btn sun start" id="start">▶ Bắt đầu nói chuyện</button>
+  <div id="stage">
+    <div class="face" id="face" role="img" aria-label="Bạn nhỏ đang nói chuyện với con"><span class="state" id="state" hidden></span></div>
+    <div id="say" aria-live="polite"></div>
+    <div id="mine" hidden></div>
   </div>
+  <details id="hist" hidden><summary>Xem lại cuộc trò chuyện</summary><div id="log"></div></details>
   <div class="bar">
     <button class="btn" id="mic" hidden disabled>🎙 Bấm để nói</button>
     <input id="text" maxlength="200" autocomplete="off" placeholder="Gõ câu tiếng Anh ở đây" disabled>
@@ -72,7 +82,7 @@
   "use strict";
   const UNITS = window.KIDS || [], TURNS = 15;
   const $ = (id) => document.getElementById(id);
-  const log = $("log"), text = $("text"), sendB = $("send"), micB = $("mic"), unitSel = $("unit");
+  const log = $("log"), sayEl = $("say"), mineEl = $("mine"), faceEl = $("face"), stateEl = $("state"), text = $("text"), sendB = $("send"), micB = $("mic"), unitSel = $("unit");
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* bỏ qua */ } } };
 
@@ -108,50 +118,78 @@
   let sample = null, tts = null, dict = null, msgs = [], busy = false, started = false, turns = 0, heard = "";
   const split = (t) => { const ls = t.split("\n").map((x) => x.trim()).filter(Boolean); return { en: ls.filter((x) => !x.startsWith("💡")).join(" "), tip: ls.filter((x) => x.startsWith("💡")).join(" ") }; };
 
+  // khuôn mặt: ô 0 là mặt nghỉ, ô 1..26 là đang nói (chạy tới rồi chạy lui cho liền mạch)
+  const FRAMES = 26; let talkT = 0, estT = 0, fi = 0, dir = 1, hearing = false;
+  const frame = (k) => { faceEl.style.backgroundPosition = `${(k % 9) / 8 * 100}% ${Math.floor(k / 9) / 2 * 100}%`; };
+  const still = !!(window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches);
+  function mood(label) { stateEl.textContent = label || ""; stateEl.hidden = !label; }
+  function talk(on) {
+    clearInterval(talkT); clearTimeout(estT); talkT = 0;
+    faceEl.classList.toggle("talk", on);
+    if (!on) { frame(0); if (!hearing && !busy) mood(""); return; }
+    mood("Đang nói…");
+    if (still) { frame(8); return; }
+    fi = 1; dir = 1;
+    talkT = setInterval(() => { frame(fi); fi += dir; if (fi >= FRAMES) dir = -1; if (fi <= 1) dir = 1; }, 66);
+  }
   function speak(en) {
     if (!en) return;
-    if (tts) { tts.speak(en, { language: "en", rate: 0.85 }).catch(() => {}); return; }
-    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(en); u.lang = "en-US"; u.rate = 0.85; speechSynthesis.speak(u); } catch { /* không có giọng đọc */ }
+    if (tts) { talk(true); tts.speak(en, { language: "en", rate: 0.85 }).catch(() => {}).then(() => talk(false)); return; }
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(en); u.lang = "en-US"; u.rate = 0.85;
+      u.onstart = () => talk(true); u.onend = u.onerror = () => talk(false);
+      speechSynthesis.speak(u);
+      estT = setTimeout(() => talk(false), 1500 + en.length * 90); // phòng khi trình duyệt không báo đọc xong
+    } catch { talk(true); estT = setTimeout(() => talk(false), 800 + en.length * 70); } // không có giọng đọc: vẫn cho mặt cử động
   }
   function draw(extra) {
-    log.innerHTML = msgs.map((m, k) => {
-      if (m.role === "user") return `<div class="bub me">${esc(m.content)}</div>`;
-      const { en, tip } = split(m.content);
-      return `<div class="bub bot"><button class="spk" data-k="${k}" title="Nghe lại" aria-label="Nghe lại">🔊</button><div><div>${esc(en)}</div>${tip ? `<div class="tip">${esc(tip)}</div>` : ""}</div></div>`;
-    }).join("") + (extra || "");
-    log.scrollTop = log.scrollHeight;
+    const last = msgs.filter((m) => m.role === "assistant").pop(), mine = msgs.length && msgs[msgs.length - 1].role === "user" ? msgs[msgs.length - 1] : null;
+    if (extra != null) sayEl.innerHTML = extra;
+    else if (last) {
+      const { en, tip } = split(last.content);
+      sayEl.innerHTML = `<div class="line"><button class="spk" id="replay" title="Nghe lại" aria-label="Nghe lại">🔊</button><span>${esc(en)}</span></div>${tip ? `<div class="tip">${esc(tip)}</div>` : ""}`;
+      $("replay").onclick = () => speak(en);
+    }
+    mineEl.hidden = !mine; if (mine) mineEl.textContent = "Con nói: " + mine.content;
+    log.innerHTML = msgs.map((m) => m.role === "user" ? `<div class="bub me">${esc(m.content)}</div>` : `<div class="bub bot">${esc(split(m.content).en)}</div>`).join("");
+    $("hist").hidden = msgs.length < 3;
     const ended = turns >= TURNS && !busy, off = busy || ended || !started;
     text.disabled = sendB.disabled = micB.disabled = off;
     $("turn").textContent = turns ? `Lượt ${Math.min(turns, TURNS)}/${TURNS}` : "";
     $("again").hidden = !started;
   }
   const note = (t) => `<div class="note">${esc(t)}</div>`;
+  const startBtn = (label) => `<button class="btn sun start" id="start">${label}</button>`;
+  const intro = () => { draw(note("Chọn unit con đang học rồi bấm nút bên dưới. Bạn nhỏ sẽ hỏi, con trả lời bằng tiếng Anh nhé!") + startBtn("▶ Bắt đầu nói chuyện")); $("start").onclick = begin; };
 
   async function ask() {
-    busy = true; draw(`<div class="bub bot wait">Cô Mimi đang nghĩ…</div>`);
+    talk(false); busy = true; draw(msgs.length ? null : note("Chờ một chút nhé…")); mood("Đang nghĩ…");
     let reply = "", code = "";
     try {
       const r = await sample([{ role: "user", content: RULES(unit()) }].concat(msgs.slice(-12)), { cache: false });
       reply = String(r.text || "").trim();
     } catch (e) { code = (e && e.code) || "error"; }
-    busy = false;
+    busy = false; mood("");
     if (!reply) {
       if (msgs.length && msgs[msgs.length - 1].role === "user") { text.value = msgs.pop().content; turns--; }
       const why = code === "not_granted" ? "Trang chưa được phép hỏi Claude. Bố mẹ hãy mở lại trang và bấm cho phép."
         : code === "rate_limited" ? "Cô Mimi đang bận một chút. Con chờ vài giây rồi gửi lại nhé."
         : "Chưa kết nối được với cô Mimi. Con thử lại nhé.";
-      draw(note(why) + (msgs.length ? "" : `<button class="btn sun start" id="start">▶ Thử lại</button>`));
+      draw(note(why) + (msgs.length ? "" : startBtn("▶ Thử lại")));
       const s = $("start"); if (s) s.onclick = begin;
       return;
     }
     msgs.push({ role: "assistant", content: reply });
-    draw(turns >= TURNS ? note("Con đã trò chuyện 15 lượt rồi, giỏi lắm! Bấm “Bắt đầu lại” nếu muốn nói tiếp.") : "");
+    draw();
+    if (turns >= TURNS) sayEl.insertAdjacentHTML("beforeend", note("Con đã trò chuyện 15 lượt rồi, giỏi lắm! Bấm “Bắt đầu lại” nếu muốn nói tiếp."));
     speak(split(reply).en);
   }
   function send(t) {
     t = String(t || "").trim().slice(0, 200);
     if (!t || busy || !started || turns >= TURNS) return;
-    if (tts) tts.stop && tts.stop();
+    if (tts && tts.stop) tts.stop(); else { try { speechSynthesis.cancel(); } catch { /* bỏ qua */ } }
+    talk(false);
     msgs.push({ role: "user", content: t }); turns++;
     text.value = "";
     ask();
@@ -162,7 +200,7 @@
     msgs = []; turns = 0; started = true;
     ask();
   }
-  $("start").onclick = begin;
+  intro();
   $("again").onclick = () => { if (busy) return; if (dict && dict.active()) dict.stop().catch(() => {}); begin(); };
   unitSel.onchange = () => { store.set("mimi-unit", unitSel.value); if (started && !busy) begin(); };
   sendB.onclick = () => send(text.value);
@@ -174,7 +212,7 @@
     if (dict.active()) { dict.stop().catch(() => {}); return; }
     heard = "";
     dict.start({ language: "en" }).catch((e) => {
-      if (e && e.code === "not_granted") { micB.hidden = true; log.insertAdjacentHTML("beforeend", note("Micro chưa được cho phép. Con hãy gõ câu trả lời nhé.")); }
+      if (e && e.code === "not_granted") { micB.hidden = true; sayEl.insertAdjacentHTML("beforeend", note("Micro chưa được cho phép. Con hãy gõ câu trả lời nhé.")); }
     });
   };
 
@@ -187,7 +225,8 @@
       dict.onFinal(({ text: t }) => { heard = (heard + " " + t).trim(); text.value = heard; });
       dict.onState(({ state }) => {
         const on = state === "listening" || state === "starting";
-        micB.classList.toggle("live", on);
+        micB.classList.toggle("live", on); hearing = on; faceEl.classList.toggle("hear", on);
+        if (on) { talk(false); mood("Đang nghe con…"); } else if (!busy) mood("");
         micB.textContent = on ? "● Đang nghe… bấm để gửi" : "🎙 Bấm để nói";
         if (state === "idle" && heard) { const t = heard; heard = ""; send(t); }
       });
