@@ -157,6 +157,17 @@ select.inp { width: auto; padding: 8px 10px; }
 #timer.low { background: #f5b301; color: #12284d; }
 .lock { padding: 36px 18px; }
 .lock h1 { margin-bottom: 10px; }
+.pbox { margin: 26px auto 0; padding: 16px; max-width: 460px; border: 2px dashed var(--line); border-radius: 14px; }
+.pbox h3 { margin: 0 0 6px; }
+.pbox .row { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.pbox .row[hidden] { display: none; }
+.pbox input { width: 150px; font-size: 24px; font-weight: 700; letter-spacing: .2em; text-align: center; padding: 8px; border: 2px solid var(--line); border-radius: 10px; }
+.pbox button:disabled { opacity: .55; }
+.pbox input.secret { -webkit-text-security: disc; }
+.tab.locked, .mode.locked { opacity: .5; cursor: not-allowed; user-select: none; }
+.gate { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: #fff3c4; border: 1px solid #f5b301; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gate.done { background: var(--ok-soft); border-color: var(--ok); }
+.tabs { margin-bottom: 12px; }
 
 /* nhắc đọc to */
 #mic { margin-left: auto; font-size: 13px; opacity: .85; white-space: nowrap; }

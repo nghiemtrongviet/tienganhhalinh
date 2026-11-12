@@ -158,6 +158,20 @@
   };
   // các chế độ dùng được cho từng unit (không có video thì ẩn mục video, không có hình thì ẩn trò chọn hình)
   const modesFor = (u, tab) => Object.entries(TABS[tab][1]).filter(([k]) => !(k === "video" && !u.videos.length) && !(k === "pic" && !hasPics(u)) && !(k === "dict" && u.kids) && !(k === "order" && !u.kids));
+  /* ----- học đúng thứ tự: Từ vựng → Nghe → Nói → Trò chơi, xong bước trước mới mở bước sau ----- */
+  const QUIZ_PASS = 80;
+  const STEPS = [
+    ["vocab", "flash", "bấm “Đã thuộc” hết các thẻ từ", (u, p) => p.known.length >= u.vocab.length],
+    ["vocab", "quiz", `làm Trắc nghiệm đạt từ ${QUIZ_PASS}%`, (u, p) => p.quiz >= QUIZ_PASS],
+    ["listen", "", "làm xong tất cả các câu nghe", (u, p) => p.dict.length >= u.phrases.length],
+    ["listen", "dlg", "trả lời đúng các câu hỏi của bài hội thoại", (u, p) => !!p.dlg],
+    ["speak", "shadow", "nói đạt tất cả các mẫu câu", (u, p) => u.phrases.every((_, k) => p.speak[k] >= 70)]
+  ];
+  // mỗi chế độ cần xong bao nhiêu bước đầu thì mới mở
+  const NEED = { flash: 0, list: 0, quiz: 1, spell: 1, video: 2, order: 2, dict: 2, dlg: 3, shadow: 4, role: 5, pic: 5, memory: 5, scramble: 5, balloon: 5 };
+  const stage = (u) => { const p = P(u.id), i = STEPS.findIndex((st) => !st[3](u, p)); return i < 0 ? STEPS.length : i; };
+  const stepAt = (u, i) => [STEPS[i][0], STEPS[i][1] || (u.kids ? "order" : "dict")];
+  const isOpen = (u, mode) => stage(u) >= NEED[mode];
   // hẹn giờ của trò chơi: tự hủy khi chuyển trang
   const timers = new Set();
   const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); return t; };
@@ -173,9 +187,12 @@
     if (a === "today") return todayLesson();
     if (a === "review") { window.scrollTo(0, 0); return reviewPage(); }
     if (!u) return home();
-    const t = TABS[tab] ? tab : "vocab";
+    const st = stage(u), cur = st < STEPS.length ? stepAt(u, st) : ["vocab", "flash"];
+    const t = TABS[tab] ? tab : cur[0];
     const ms = modesFor(u, t).map(([k]) => k);
-    const m = ms.includes(mode) ? mode : ms[0];
+    const m = ms.includes(mode) ? mode : (!TABS[tab] ? cur[1] : ms.find((k) => isOpen(u, k)) || ms[0]);
+    // chưa xong bước trước thì đưa về bước đang học
+    if (!isOpen(u, m)) { location.replace(`#/u/${u.id}/${cur[0]}/${cur[1]}`); return; }
     unit(u, t, m);
     window.scrollTo(0, 0);
   }
@@ -185,7 +202,7 @@
     crumbs.innerHTML = "";
     const cards = (list) => `<div class="grid">${list.map((u) => {
         const p = progress(u);
-        return `<a class="card unit ${u.kids ? "kid" : ""}" href="#/u/${u.id}/vocab">
+        return `<a class="card unit ${u.kids ? "kid" : ""}" href="#/u/${u.id}">
           ${u.kids ? `<div class="cover">${esc(pic(u.vocab[0]) || "📘")}</div>` : ""}
           <div class="no">${uname(u).toUpperCase()}</div><h3>${esc(u.title)}</h3><div class="vi">${esc(u.vi)}</div>
           <div class="topics">${esc(u.topics)}</div>
@@ -202,28 +219,43 @@
       ${nextB ? `<div class="muted small">Còn <b>${nextB[0] - M.stars}</b> sao nữa để nhận huy hiệu ${nextB[1]} ${esc(nextB[2])}. Mỗi câu đúng được 1 sao.</div>` : ""}</div>`;
     app.innerHTML = `${hello}<h1 style="margin-top:26px">🌟 Tiếng Anh lớp 4</h1>
       <p class="sub">Bấm vào unit con đang học ở lớp. Unit có viền hồng là unit của <b>Bài hôm nay</b>.</p>
-      <div class="utiles">${kids.map((u) => `<a class="utile ${u === tu ? "cur" : ""}" href="#/u/${u.id}/vocab"><span class="e">${esc(pic(u.vocab[0]) || "📘")}</span><b>${uname(u)}</b><span class="t">${esc(u.title)}</span><div class="bar"><i style="width:${pc(progress(u).all)}%"></i></div></a>`).join("")}</div>
+      <div class="utiles">${kids.map((u) => `<a class="utile ${u === tu ? "cur" : ""}" href="#/u/${u.id}"><span class="e">${esc(pic(u.vocab[0]) || "📘")}</span><b>${uname(u)}</b><span class="t">${esc(u.title)}</span><div class="bar"><i style="width:${pc(progress(u).all)}%"></i></div></a>`).join("")}</div>
       <details class="adult"><summary>Dành cho người lớn: Business Partner A1 (${adult.length} unit)</summary>${cards(adult)}</details>`;
   }
 
-  let curUnit = null;
+  let curUnit = null, curTab = "", curMode = "";
+  function navHtml(u, tab, mode) {
+    const st = stage(u), all = st >= STEPS.length;
+    const tabs = Object.entries(TABS).map(([k, [name]]) => {
+      const first = modesFor(u, k)[0][0];
+      return isOpen(u, first) ? `<a class="tab ${k === tab ? "on" : ""}" data-t="${k}" href="#/u/${u.id}/${k}">${name}</a>` : `<span class="tab locked" title="Học xong bước trước thì mới mở">🔒 ${name}</span>`;
+    }).join("");
+    const modes = modesFor(u, tab).map(([k, name]) => isOpen(u, k) ? `<a class="mode ${k === mode ? "on" : ""}" href="#/u/${u.id}/${tab}/${k}">${name}</a>` : `<span class="mode locked">🔒 ${name}</span>`).join("");
+    let hint;
+    if (all) hint = `<div class="gate done">🎉 ${esc(kid)} đã học xong Từ vựng, Nghe và Nói. Trò chơi đã mở!${tab === "game" ? "" : ` <a href="#/u/${u.id}/game">Chơi ngay ›</a>`}</div>`;
+    else {
+      const [t2, m2] = stepAt(u, st), here = t2 === tab && m2 === mode;
+      hint = `<div class="gate">👉 <b>Bước ${st + 1}/${STEPS.length}:</b> ${STEPS[st][2]} thì mới mở bước sau.${here ? "" : ` <a class="btn pri" href="#/u/${u.id}/${t2}/${m2}">Đến bước này ›</a>`}</div>`;
+    }
+    return `<div class="tabs">${tabs}</div>${hint}<div class="modes">${modes}</div>`;
+  }
   function refreshBar() {
+    const nav = $("#unav"); if (nav && curUnit) nav.innerHTML = navHtml(curUnit, curTab, curMode);
     const el = $("#ubar"); if (!el || !curUnit) return;
     const p = progress(curUnit);
     el.innerHTML = `<div class="bar"><i style="width:${pc(p.all)}%"></i></div>
       <div class="pct"><span>Từ vựng ${pc(p.v)}% · Nghe ${pc(p.l)}% · Nói ${pc(p.s)}%</span><b>${pc(p.all)}%</b></div>`;
   }
   function unit(u, tab, mode) {
-    curUnit = u;
+    curUnit = u; curTab = tab; curMode = mode;
     crumbs.innerHTML = `<a href="#/">Tất cả bài học</a> › ${uname(u)}`;
     const prev = C.find((x) => x.id === u.id - 1), next = C.find((x) => x.id === u.id + 1);
     app.innerHTML = `<div class="row"><div><h1>${uname(u)}: ${esc(u.title)}</h1><p class="sub" style="margin:0">${esc(u.vi)} — ${esc(u.topics)}</p></div>
       <span class="spacer"></span>
-      ${prev ? `<a class="btn" href="#/u/${prev.id}/${tab}">‹ ${uname(prev)}</a>` : ""}${next ? `<a class="btn" href="#/u/${next.id}/${tab}">${uname(next)} ›</a>` : ""}</div>
+      ${prev ? `<a class="btn" href="#/u/${prev.id}">‹ ${uname(prev)}</a>` : ""}${next ? `<a class="btn" href="#/u/${next.id}">${uname(next)} ›</a>` : ""}</div>
       <div id="ubar" style="margin-top:12px"></div>
       ${u.kids ? `<div style="margin-top:10px">${todayUnit() === u ? '<span class="tag">📌 Đây là unit của Bài hôm nay</span>' : '<button class="btn" id="setcur">📌 Đặt làm unit đang học</button>'}</div>` : ""}
-      <div class="tabs">${Object.entries(TABS).map(([k, [name]]) => `<a class="tab ${k === tab ? "on" : ""}" data-t="${k}" href="#/u/${u.id}/${k}">${name}</a>`).join("")}</div>
-      <div class="modes">${modesFor(u, tab).map(([k, name]) => `<a class="mode ${k === mode ? "on" : ""}" href="#/u/${u.id}/${tab}/${k}">${name}</a>`).join("")}</div>
+      <div id="unav"></div>
       <div id="pane"></div>`;
     refreshBar();
     const sc = $("#setcur");
@@ -295,7 +327,7 @@
     const draw = () => {
       if (i >= qs.length) {
         const sc = pc(right / qs.length);
-        if (sc > p.quiz) { p.quiz = sc; save(); }
+        if (sc > p.quiz) { p.quiz = sc; save(); refreshBar(); }
         pane.innerHTML = `<div class="card center"><div class="muted">Kết quả</div><div class="score">${right}/${qs.length}</div>
           <p class="muted">Điểm cao nhất: ${p.quiz}%</p><button class="btn pri" id="again">Làm lại</button></div>`;
         $("#again").onclick = () => VIEWS.quiz(u, pane);
@@ -475,8 +507,8 @@
       app.querySelectorAll(`.opt[data-q="${k}"]`).forEach((b) => b.classList.remove("right", "wrong"));
       e.currentTarget.classList.add(ok ? "right" : "wrong");
       if (d.questions.every((_, x) => answers[x])) {
-        p.dlg = 1; save();
-        $("#fb").innerHTML = `<div class="fb good">Bạn trả lời đúng cả ${d.questions.length} câu. Hãy mở lời thoại để đối chiếu, rồi sang phần <a href="#/u/${u.id}/speak/role">đóng vai hội thoại</a>.</div>`;
+        p.dlg = 1; save(); refreshBar();
+        $("#fb").innerHTML = `<div class="fb good">Bạn trả lời đúng cả ${d.questions.length} câu. Hãy mở lời thoại để đối chiếu, rồi sang phần <a href="#/u/${u.id}/speak">Nói</a>.</div>`;
       }
     });
   };
@@ -808,7 +840,7 @@
     if (five.length < 5) five = five.concat(shuffle(u.vocab.filter((w) => !five.includes(w))).slice(0, 5 - five.length));
     const lesson = { ...u, vocab: five };
     const rev = shuffle(reviewWords()).slice(0, 5);
-    const NAMES = (rev.length ? ["Ôn từ hay sai"] : []).concat(["Học 5 từ mới", "Nghe và chọn", "Xếp chữ", "Nói thành câu"]);
+    const NAMES = (rev.length ? ["Ôn từ hay sai"] : []).concat(["Học 5 từ mới", "Nghe và chọn", "Nói thành câu", "Xếp chữ"]);
     let si = 0;
     crumbs.innerHTML = `<a href="#/">Tất cả bài học</a> › Bài hôm nay`;
     const next = () => { si++; run(); };
@@ -867,7 +899,7 @@
         <h1>${esc(kid)} đã hoàn thành bài hôm nay!</h1>
         <div class="score">+${got} ⭐</div>
         <p>Tổng cộng <b>${M.stars} sao</b> · 🔥 <b>${n} ngày</b> học liên tiếp</p>
-        <div class="row" style="justify-content:center"><a class="btn pri" href="#/u/${u.id}/game">🎮 Chơi trò chơi ${uname(u)}</a><a class="btn" href="#/">Về trang chủ</a></div></div>`;
+        <div class="row" style="justify-content:center"><a class="btn pri" href="#/u/${u.id}">📘 Học tiếp ${uname(u)}</a><a class="btn" href="#/">Về trang chủ</a></div></div>`;
     };
 
     const run = () => {
@@ -876,7 +908,7 @@
       app.innerHTML = `<h1>📅 Bài hôm nay</h1><p class="sub">${uname(u)}: ${esc(u.title)} — ${esc(u.vi)}</p>
         <div class="steps">${NAMES.map((n, k) => `<span class="step ${k < si ? "done" : k === si ? "on" : ""}">${k < si ? "✓" : k + 1}. ${n}</span>`).join("")}</div><div id="pane"></div>`;
       const pane = $("#pane");
-      (rev.length ? [() => VIEWS.pic(reviewUnit(rev, u), pane, next)] : []).concat([learn, () => VIEWS.pic(lesson, pane, next), () => VIEWS.scramble({ ...lesson, vocab: five.slice(0, 3) }, pane, next), speak])[si](pane);
+      (rev.length ? [() => VIEWS.pic(reviewUnit(rev, u), pane, next)] : []).concat([learn, () => VIEWS.pic(lesson, pane, next), speak, () => VIEWS.scramble({ ...lesson, vocab: five.slice(0, 3) }, pane, next)])[si](pane);
     };
     run();
   }
@@ -934,6 +966,8 @@
   /* ================= GIỚI HẠN THỜI GIAN ================= */
   // Mỗi ngày dùng tối đa LIMIT giây; hết giờ thì khóa trang trong LOCK mili giây.
   const LIMIT = 15 * 60, LOCK = 8 * 60 * 60 * 1000, TKEY = "bpa1-time";
+  // Địa chỉ dịch vụ gửi thư cho bố mẹ (để trống thì ẩn phần xin mã). Mã có hiệu lực CODE_TTL, gửi lại sau RESEND.
+  const MAIL_URL = "", CODE_TTL = 15 * 60 * 1000, RESEND = 60 * 1000;
   const timerEl = document.getElementById("timer");
   const loadT = () => { try { return Object.assign({ used: 0, day: "", until: 0 }, JSON.parse(localStorage.getItem(TKEY))); } catch { return { used: 0, day: "", until: 0 }; } };
   const saveT = (t) => { try { localStorage.setItem(TKEY, JSON.stringify(t)); } catch { /* bỏ qua */ } };
@@ -952,8 +986,77 @@
       <h1>Hôm nay ${esc(kid)} đã học đủ ${LIMIT / 60} phút rồi!</h1>
       <p>${esc(kid)} giỏi lắm. Bây giờ hãy nghỉ ngơi, cho mắt thư giãn nhé. 🌙</p>
       <p class="muted">Trang sẽ mở lại sau</p><div class="score" id="lockcd"></div>
-      <p class="muted">Mở lại lúc ${two(until.getHours())}:${two(until.getMinutes())} ngày ${two(until.getDate())}/${two(until.getMonth() + 1)}</p></div>`;
+      <p class="muted">Mở lại lúc ${two(until.getHours())}:${two(until.getMinutes())} ngày ${two(until.getDate())}/${two(until.getMonth() + 1)}</p>
+      <div class="pbox"><h3>👨‍👩‍👧 Bố mẹ cho học tiếp?</h3>
+        <p class="muted">Bố mẹ nhập mã bí mật thì ${esc(kid)} được học thêm ${LIMIT / 60} phút.</p>
+        ${MAIL_URL ? `<button class="btn" id="psend">📧 Gửi mã vào thư của bố mẹ</button>` : ""}
+        <div class="row"><input id="pcode" class="secret" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="Mã bí mật"><button class="btn pri" id="pok">Mở khóa</button></div>
+        <p id="pmsg" class="muted"></p></div></div>`;
     window.scrollTo(0, 0);
+    parentBox();
+  }
+  /* ----- bố mẹ cho phép học tiếp: mã bí mật cố định, hoặc mã 6 số gửi qua thư (nếu có MAIL_URL) ----- */
+  // Chỉ lưu dấu băm của mã bí mật, không lưu mã, để người xem mã nguồn không đọc được ngay.
+  const SECRET = "1g99he5atuc", MAX_BAD = 5, BAD_WAIT = 5 * 60 * 1000;
+  const h53 = (str) => {
+    let a = 0xdeadbeef ^ 7, b = 0x41c6ce57 ^ 7;
+    for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); a = Math.imul(a ^ c, 2654435761); b = Math.imul(b ^ c, 1597334677); }
+    a = Math.imul(a ^ (a >>> 16), 2246822507) ^ Math.imul(b ^ (b >>> 13), 3266489909);
+    b = Math.imul(b ^ (b >>> 16), 2246822507) ^ Math.imul(a ^ (a >>> 13), 3266489909);
+    return (4294967296 * (2097151 & b) + (a >>> 0)).toString(36);
+  };
+  function parentBox() {
+    const send = document.getElementById("psend"), inp = document.getElementById("pcode"),
+      ok = document.getElementById("pok"), msg = document.getElementById("pmsg");
+    const pc = () => { const q = loadT().pc; return q && Date.now() < q.exp ? q : null; };
+    const upd = (fn) => { const t = loadT(); fn(t); saveT(t); };
+    const wait = () => { const q = loadT().pc; return q ? Math.ceil((q.sent + RESEND - Date.now()) / 1000) : 0; };
+    const blocked = () => Math.ceil(((loadT().pwait || 0) - Date.now()) / 1000);
+    const show = () => {
+      const bl = blocked();
+      ok.disabled = inp.disabled = bl > 0;
+      if (bl > 0) msg.textContent = "Nhập sai quá " + MAX_BAD + " lần. Thử lại sau " + clock(bl) + ".";
+      else if (inp.disabled !== ok.disabled || /^Nhập sai quá/.test(msg.textContent)) msg.textContent = "";
+      if (!send) return;
+      const w = wait();
+      send.disabled = w > 0;
+      send.textContent = w > 0 ? "Gửi lại sau " + w + " giây" : (pc() ? "📧 Gửi lại mã" : "📧 Gửi mã vào thư của bố mẹ");
+    };
+    show();
+    every(show, 1000);
+    if (send) send.onclick = async () => {
+      if (wait() > 0) return;
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      send.disabled = true; msg.textContent = "Đang gửi mã…";
+      try {
+        // Gửi dạng text/plain để trình duyệt không hỏi trước (Apps Script không trả lời OPTIONS).
+        const r = await fetch(MAIL_URL, { method: "POST", body: JSON.stringify({ code, kid, minutes: LIMIT / 60, ttl: CODE_TTL / 60000 }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok || !j.ok) throw new Error(j.error || r.status);
+        upd((t) => { t.pc = { h: h53("m|" + code), exp: Date.now() + CODE_TTL, sent: Date.now() }; });
+        msg.textContent = "Đã gửi mã vào hộp thư của bố mẹ. Mã dùng được trong " + (CODE_TTL / 60000) + " phút.";
+        inp.value = ""; show(); inp.focus();
+      } catch (e) {
+        msg.textContent = String(e.message) === "limit" ? "Hôm nay đã xin mã quá nhiều lần rồi." : "Chưa gửi được thư. Hãy kiểm tra mạng rồi thử lại.";
+        show();
+      }
+    };
+    const check = () => {
+      if (blocked() > 0) return;
+      const v = inp.value.replace(/\D/g, ""), q = pc();
+      if (!v) return;
+      if (h53("hl|" + v) === SECRET || (q && h53("m|" + v) === q.h)) {
+        upd((t) => { t.until = 0; t.used = 0; t.pc = null; t.pbad = 0; t.pwait = 0; });
+        tick();
+        return;
+      }
+      inp.value = "";
+      let left = 0;
+      upd((t) => { t.pbad = (t.pbad || 0) + 1; if (t.pbad >= MAX_BAD) { t.pbad = 0; t.pwait = Date.now() + BAD_WAIT; } left = MAX_BAD - t.pbad; });
+      if (blocked() > 0) show(); else msg.textContent = "Mã chưa đúng. Còn " + left + " lần thử.";
+    };
+    ok.onclick = check;
+    inp.onkeydown = (e) => { if (e.key === "Enter") check(); };
   }
   function tick() {
     const t = loadT(), now = Date.now();
