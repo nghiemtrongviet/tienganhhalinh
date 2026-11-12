@@ -29,14 +29,32 @@
   try { kid = localStorage.getItem(NAMEKEY) || kid; } catch { /* bỏ qua */ }
   const CHEERS = ["{n} cố lên! 💪", "{n} giỏi quá! 🌟", "Tuyệt vời, {n}! 🎉", "Chính xác! {n} cố lên nhé! 💖", "{n} làm tốt lắm! 👏", "Xuất sắc, {n}! 🏆", "Đúng rồi! {n} tiếp tục nào! 🚀", "{n} thông minh quá! ✨", "Hoan hô {n}! 🥳", "{n} cố lên, sắp giỏi tiếng Anh rồi! 📚"];
   let lastCheer = -1, cheerT;
+  /* ---------- sao thưởng, huy hiệu, chuỗi ngày học ---------- */
+  const M = (S._meta ||= { stars: 0, days: [] });
+  const BADGES = [[10, "🌱", "Mầm xanh"], [30, "🐣", "Gà con chăm chỉ"], [60, "🐰", "Thỏ nhanh nhẹn"], [100, "🦊", "Cáo thông minh"], [200, "🦁", "Sư tử dũng cảm"], [350, "🦄", "Kỳ lân tài năng"], [500, "🚀", "Phi hành gia"], [1000, "👑", "Nhà vô địch tiếng Anh"]];
+  const dayKey = (d = new Date()) => d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  function markDay() { const k = dayKey(); if (!M.days.includes(k)) { M.days.push(k); M.days = M.days.slice(-90); } }
+  function streak() {
+    const set = new Set(M.days), d = new Date(); let n = 0;
+    if (!set.has(dayKey(d))) d.setDate(d.getDate() - 1);
+    while (set.has(dayKey(d))) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  const starEl = document.getElementById("stars");
+  function showStars() { if (starEl) starEl.textContent = "⭐ " + M.stars; }
+  // mỗi lần làm đúng được 1 sao; trả về huy hiệu nếu vừa đạt mốc
+  function addStar() { M.stars++; markDay(); save(); showStars(); return BADGES.find((b) => b[0] === M.stars); }
+  showStars();
+
   function cheer() {
     let i; do { i = Math.floor(Math.random() * CHEERS.length); } while (i === lastCheer);
     lastCheer = i;
+    const badge = addStar();
     let el = document.getElementById("cheer");
     if (!el) { el = document.createElement("div"); el.id = "cheer"; el.setAttribute("aria-live", "polite"); document.body.appendChild(el); }
-    el.textContent = CHEERS[i].replace("{n}", kid);
+    el.textContent = badge ? `🎖 Huy hiệu mới: ${badge[1]} ${badge[2]}! Chúc mừng ${kid}!` : CHEERS[i].replace("{n}", kid);
     el.className = ""; void el.offsetWidth; el.className = "show";
-    clearTimeout(cheerT); cheerT = setTimeout(() => { el.className = ""; }, 1900);
+    clearTimeout(cheerT); cheerT = setTimeout(() => { el.className = ""; }, badge ? 4500 : 1900);
   }
   const renameEl = document.getElementById("rename");
   if (renameEl) {
@@ -151,6 +169,7 @@
     if (locked()) return showLock();
     const [, a, id, tab, mode] = location.hash.split("/");
     const u = a === "u" && C.find((x) => x.id === +id);
+    if (a === "today") return todayLesson();
     if (!u) return home();
     const t = TABS[tab] ? tab : "vocab";
     const ms = modesFor(u, t).map(([k]) => k);
@@ -172,7 +191,13 @@
           <div class="pct"><span>Từ vựng ${pc(p.v)}% · Nghe ${pc(p.l)}% · Nói ${pc(p.s)}%</span><b>${pc(p.all)}%</b></div></a>`;
       }).join("")}</div>`;
     const kids = C.filter((u) => u.kids), adult = C.filter((u) => !u.kids);
-    app.innerHTML = `<h1>🌟 Tiếng Anh lớp 4</h1>
+    const tu = todayUnit(), doneToday = M.today === dayKey(), nextB = BADGES.find((b) => b[0] > M.stars);
+    const hello = `<div class="card hello"><div class="row"><div><div class="big">Xin chào, ${esc(kid)}! 👋</div>
+        <div class="muted">⭐ <b>${M.stars}</b> sao · 🔥 <b>${streak()}</b> ngày học liên tiếp</div></div><span class="spacer"></span>
+        <a class="todaybtn" href="#/today"><b>${doneToday ? "✓ Đã học hôm nay · Học thêm" : "▶ Bài hôm nay"}</b><small>${uname(tu)}: ${esc(tu.title)}</small></a></div>
+      <div class="badges">${BADGES.map((b) => `<span class="badge ${M.stars >= b[0] ? "got" : ""}" title="${esc(b[2])} – ${b[0]} sao">${b[1]}<small>${b[0]}⭐</small></span>`).join("")}</div>
+      ${nextB ? `<div class="muted small">Còn <b>${nextB[0] - M.stars}</b> sao nữa để nhận huy hiệu ${nextB[1]} ${esc(nextB[2])}. Mỗi câu đúng được 1 sao.</div>` : ""}</div>`;
+    app.innerHTML = `${hello}<h1 style="margin-top:26px">🌟 Tiếng Anh lớp 4</h1>
       <p class="sub">${kids.length} unit theo thứ tự sách <b>Global Success</b>. Mỗi unit có <b>Từ vựng</b>, <b>Nghe</b>, <b>Nói</b> và <b>Trò chơi</b>.</p>
       ${cards(kids)}
       <h1 style="margin-top:34px">Business Partner A1</h1>
@@ -509,12 +534,13 @@
   const G = (u) => (P(u.id).game ||= {});
 
   // Nghe chọn hình: máy đọc từ, bấm vào hình đúng
-  VIEWS.pic = (u, pane) => {
-    const g = G(u), pool = u.vocab.filter((w) => w[4]);
+  VIEWS.pic = (u, pane, done) => {
+    const g = G(u), pool = done ? u.vocab : u.vocab.filter((w) => w[4]);
     const deck = shuffle(pool).slice(0, 10);
     let i = 0, score = 0;
     const round = () => {
       if (i >= deck.length) {
+        if (done) return done(score);
         if (!(g.pic >= score)) { g.pic = score; save(); }
         pane.innerHTML = `<div class="card center">${stars(score >= deck.length - 1 ? 3 : score >= deck.length * 0.6 ? 2 : 1)}<div class="muted">Con chọn đúng</div><div class="score">${score}/${deck.length}</div>
           <p class="muted">Điểm cao nhất: ${g.pic}</p><button class="btn pri" id="again">Chơi lại</button></div>`;
@@ -522,18 +548,18 @@
         return;
       }
       const w = deck[i];
-      const others = shuffle(pool.filter((x) => x !== w && x[4] !== w[4])).slice(0, 3);
+      const others = shuffle(pool.filter((x) => x !== w && (x[4] || x[2]) !== (w[4] || w[2]))).slice(0, 3);
       const opts = shuffle([w, ...others]);
       pane.innerHTML = `<div class="card center"><div class="row gamebar"><span>Câu ${i + 1}/${deck.length}</span><span class="spacer"></span><span>Đúng: <b>${score}</b></span></div>
         <p>Nghe và bấm vào <b>hình đúng</b>.</p>
         <button class="btn pri" id="sp" style="font-size:20px">🔊 Nghe lại</button>
-        <div class="pics">${opts.map((o, k) => `<button class="picbtn" data-k="${k}">${esc(o[4])}</button>`).join("")}</div>
+        <div class="pics">${opts.map((o, k) => `<button class="picbtn ${o[4] ? "" : "txt"}" data-k="${k}">${esc(o[4] || o[2])}</button>`).join("")}</div>
         <div id="fb"></div></div>`;
       $("#sp").onclick = () => say(w[0], { rate: 0.75 });
       say(w[0], { rate: 0.75 });
       on(".picbtn", "click", (e) => {
         const ok = opts[+e.currentTarget.dataset.k] === w;
-        if (ok) { score++; cheer(); }
+        if (ok) { score++; cheer(); if (done && !P(u.id).known.includes(w[0])) { P(u.id).known.push(w[0]); save(); } }
         app.querySelectorAll(".picbtn").forEach((b, k) => { b.disabled = true; if (opts[k] === w) b.classList.add("right"); else if (b === e.currentTarget) b.classList.add("wrong"); });
         $("#fb").innerHTML = `<div class="fb ${ok ? "good" : "bad"}">${esc(w[4])} <b>${esc(w[0])}</b> ${esc(w[1])} — ${esc(w[2])}<br><i>${esc(w[3])}</i></div>
           <div style="margin-top:12px"><button class="btn pri" id="nx">Tiếp ›</button></div>`;
@@ -582,11 +608,12 @@
   };
 
   // Xếp chữ: bấm các chữ cái theo đúng thứ tự để ghép thành từ
-  VIEWS.scramble = (u, pane) => {
+  VIEWS.scramble = (u, pane, done) => {
     const g = G(u), deck = shuffle(u.vocab).slice(0, 10), isL = (c) => /[a-z]/i.test(c);
     let i = 0, score = 0;
     const round = () => {
       if (i >= deck.length) {
+        if (done) return done(score);
         if (!(g.scramble >= score)) { g.scramble = score; save(); }
         pane.innerHTML = `<div class="card center">${stars(score >= 26 ? 3 : score >= 18 ? 2 : 1)}<div class="muted">Điểm của con</div><div class="score">${score}/30</div>
           <p class="muted">Điểm cao nhất: ${g.scramble}</p><button class="btn pri" id="again">Chơi lại</button></div>`;
@@ -692,6 +719,87 @@
     intro();
   };
 
+  /* ================= BÀI HÔM NAY ================= */
+  // Unit đang học: unit lớp 4 đầu tiên chưa thuộc hết từ
+  function todayUnit() { const ks = C.filter((u) => u.kids); return ks.find((u) => P(u.id).known.length < u.vocab.length) || ks[0] || C[0]; }
+  function todayLesson() {
+    const u = todayUnit(), p = P(u.id), start = M.stars;
+    let five = u.vocab.filter((w) => !p.known.includes(w[0])).slice(0, 5);
+    if (five.length < 5) five = five.concat(shuffle(u.vocab.filter((w) => !five.includes(w))).slice(0, 5 - five.length));
+    const lesson = { ...u, vocab: five };
+    const NAMES = ["Học 5 từ mới", "Nghe và chọn", "Xếp chữ", "Nói thành câu"];
+    let si = 0;
+    crumbs.innerHTML = `<a href="#/">Tất cả bài học</a> › Bài hôm nay`;
+    const next = () => { si++; run(); };
+
+    const learn = (pane) => {
+      let i = 0;
+      const draw = () => {
+        const w = five[i], last = i === five.length - 1;
+        pane.innerHTML = `<div class="card flash" style="cursor:default">${pic(w) ? `<div class="pic">${esc(pic(w))}</div>` : ""}
+            <div class="w">${esc(w[0])}</div><div class="ipa">${esc(w[1])}</div><div class="vi">${esc(w[2])}</div><div class="ex">${esc(w[3])}</div></div>
+          <div class="row" style="margin-top:14px"><button class="icon" id="sp">🔊</button><span class="count">Từ ${i + 1}/${five.length} · Nghe rồi đọc to theo nhé!</span>
+            <span class="spacer"></span><button class="btn pri" id="nx">${last ? "Sang bước 2 ›" : "Từ tiếp ›"}</button></div>`;
+        $("#sp").onclick = () => say(w[0] + ". " + w[3], { rate: 0.8 });
+        $("#nx").onclick = () => { if (last) return next(); i++; draw(); };
+        say(w[0] + ". " + w[3], { rate: 0.8 });
+      };
+      draw();
+    };
+
+    const speak = (pane) => {
+      let idx = u.phrases.map((_, k) => k).filter((k) => !(p.speak[k] >= 70)).slice(0, 3);
+      if (idx.length < 3) idx = [0, 1, 2];
+      let j = 0;
+      const draw = () => {
+        if (j >= idx.length) return next();
+        const k = idx[j], [en, vi] = u.phrases[k];
+        pane.innerHTML = `${SR ? "" : noSR}<div class="card center"><div class="count">Câu ${j + 1}/${idx.length}</div>
+          <div class="big" style="margin-top:14px">${esc(en)}</div><div class="muted">${esc(vi)}</div>
+          <div class="row" style="justify-content:center;margin:18px 0"><button class="btn" id="sp">🔊 Nghe mẫu</button>
+            ${SR ? `<button class="btn rec" id="rec">🎙 Bấm để nói</button>` : ""}<button class="btn ok" id="nx">${SR ? "Bỏ qua ›" : "Con đã nói xong ✓"}</button></div><div id="fb"></div></div>`;
+        $("#sp").onclick = () => say(en, { rate: 0.85 });
+        $("#nx").onclick = () => { stopRec(); if (!SR) { p.speak[k] = 100; save(); cheer(); } j++; draw(); };
+        say(en, { rate: 0.85 });
+        if (!SR) return;
+        $("#rec").onclick = () => {
+          if (activeRec) { activeRec.stop(); return; }
+          const btn = $("#rec");
+          listen((alts, err) => {
+            if (!$("#fb")) return;
+            if (!alts.length) { $("#fb").innerHTML = `<div class="fb bad">${srError(err)}</div>`; return; }
+            const rs = alts.map((t) => ({ t, r: match(en, t) })).sort((a, b) => b.r.score - a.r.score)[0];
+            const [cls, msg] = verdict(rs.r.score);
+            if (!(p.speak[k] >= rs.r.score)) { p.speak[k] = rs.r.score; save(); }
+            $("#fb").innerHTML = `<div class="fb ${cls}"><b>${rs.r.score}%</b> — ${msg}${paint(en, rs.r.hit)}</div>`;
+            if (rs.r.score >= 70) { cheer(); $("#nx").textContent = "Tiếp ›"; }
+          }, (live) => { btn.classList.toggle("live", live); btn.textContent = live ? "● Đang nghe… (bấm để dừng)" : "🎙 Bấm để nói"; });
+        };
+      };
+      draw();
+    };
+
+    const finish = () => {
+      M.today = dayKey(); markDay(); save();
+      const got = M.stars - start, n = streak();
+      app.innerHTML = `<div class="card center" style="padding:34px 18px"><div style="font-size:64px">🎉</div>
+        <h1>${esc(kid)} đã hoàn thành bài hôm nay!</h1>
+        <div class="score">+${got} ⭐</div>
+        <p>Tổng cộng <b>${M.stars} sao</b> · 🔥 <b>${n} ngày</b> học liên tiếp</p>
+        <div class="row" style="justify-content:center"><a class="btn pri" href="#/u/${u.id}/game">🎮 Chơi trò chơi ${uname(u)}</a><a class="btn" href="#/">Về trang chủ</a></div></div>`;
+    };
+
+    const run = () => {
+      stopSay(); stopRec(); clearTimers(); window.scrollTo(0, 0);
+      if (si >= NAMES.length) return finish();
+      app.innerHTML = `<h1>📅 Bài hôm nay</h1><p class="sub">${uname(u)}: ${esc(u.title)} — ${esc(u.vi)}</p>
+        <div class="steps">${NAMES.map((n, k) => `<span class="step ${k < si ? "done" : k === si ? "on" : ""}">${k < si ? "✓" : k + 1}. ${n}</span>`).join("")}</div><div id="pane"></div>`;
+      const pane = $("#pane");
+      [learn, () => VIEWS.pic(lesson, pane, next), () => VIEWS.scramble({ ...lesson, vocab: five.slice(0, 3) }, pane, next), speak][si](pane);
+    };
+    run();
+  }
+
   /* ================= NHẮC ĐỌC TO ================= */
   // Nghe âm lượng micro (chỉ xử lý ngay trên máy, không ghi âm, không gửi đi đâu).
   // Nếu QUIET mili giây không thấy tiếng đọc thì hiện lời nhắc.
@@ -780,7 +888,7 @@
     const visible = document.visibilityState === "visible";
     if (visible) t.used++;
     // nhắc đọc to: chỉ tính khi đang ở trong một unit và không phải lúc xem video
-    const reading = visible && /^#\/u\/\d/.test(location.hash) && !location.hash.includes("/listen/video");
+    const reading = visible && /^#\/(u\/\d|today)/.test(location.hash) && !location.hash.includes("/listen/video");
     if (!reading) lastVoice = now;
     else if (now - lastVoice >= QUIET) { remind(); lastVoice = now; }
     if (visible && monWanted && !mon) startMonitor();
