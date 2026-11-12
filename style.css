@@ -190,3 +190,24 @@ select.inp { width: auto; padding: 8px 10px; }
 .step.on { background: var(--brand); color: #fff; }
 .step.done { background: var(--ok-soft); color: var(--ok); }
 .picbtn.txt { font-size: 18px; font-weight: 700; padding: 26px 8px; color: var(--vocab); }
+
+/* giao diện gọn cho trẻ */
+body.kid main { font-size: 18px; }
+body.kid .btn { padding: 11px 18px; font-size: 17px; }
+body.kid .tab { padding: 12px 20px; font-size: 17px; }
+body.kid .mode { font-size: 16px; }
+body.kid .flash .ipa { display: none; }
+body.kid .small { font-size: 14px; }
+.utiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.utile { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 12px 10px; color: var(--ink); transition: transform .12s; }
+.utile:hover { transform: translateY(-3px); border-color: #f5b301; }
+.utile .e { font-size: 40px; line-height: 1.15; }
+.utile b { font-size: 13px; color: var(--brand); letter-spacing: .04em; text-transform: uppercase; }
+.utile .t { font-size: 15px; font-weight: 600; line-height: 1.25; min-height: 38px; }
+.utile .bar { width: 100%; margin-top: 6px; }
+.utile.cur { border-color: #d6336c; box-shadow: 0 0 0 3px rgba(214, 51, 108, .18); }
+details.adult { margin-top: 34px; }
+details.adult summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 10px 0; font-size: 15px; }
+details.adult .grid { margin-top: 10px; }
+.answer { min-height: 50px; border-bottom: 3px solid #b9c4d6; font-size: 24px; font-weight: 700; margin: 6px auto 18px; max-width: 560px; padding-bottom: 6px; }
+.tile.word { width: auto; padding: 0 14px; font-size: 19px; }
