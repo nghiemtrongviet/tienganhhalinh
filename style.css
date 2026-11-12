@@ -163,3 +163,14 @@ select.inp { width: auto; padding: 8px 10px; }
 #remind { position: fixed; left: 50%; top: 76px; z-index: 21; transform: translate(-50%, -30px); opacity: 0; pointer-events: none; width: max-content; max-width: 92vw; text-align: center; padding: 14px 24px; border-radius: 16px; font-size: 20px; font-weight: 800; color: #12284d; background: #ffd43b; border: 3px solid #f08c00; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); transition: transform .3s, opacity .3s; }
 #remind.show { transform: translate(-50%, 0); opacity: 1; animation: nudge .5s 3; }
 @keyframes nudge { 25% { margin-left: -6px; } 75% { margin-left: 6px; } }
+
+/* bộ bài lớp 4 */
+.unit.kid { border-top: 5px solid #f5b301; }
+.unit .cover { float: right; font-size: 44px; line-height: 1; margin-left: 8px; }
+.pic { font-size: 84px; line-height: 1.1; margin-bottom: 4px; }
+.pics { display: grid; grid-template-columns: repeat(2, minmax(0, 170px)); gap: 14px; justify-content: center; margin: 20px 0; }
+.picbtn { font-size: 70px; line-height: 1; padding: 22px 0; border-radius: 18px; border: 3px solid var(--line); background: #fff; }
+.picbtn:hover:not(:disabled) { border-color: var(--brand); transform: scale(1.04); }
+.picbtn.right { border-color: var(--ok); background: var(--ok-soft); }
+.picbtn.wrong { border-color: var(--bad); background: var(--bad-soft); opacity: .7; }
+@media (max-width: 560px) { .pic { font-size: 64px; } .picbtn { font-size: 56px; padding: 16px 0; } }

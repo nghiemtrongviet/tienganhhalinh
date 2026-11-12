@@ -1,6 +1,10 @@
 (() => {
   "use strict";
-  const C = window.COURSE;
+  const C = (window.KIDS || []).concat(window.COURSE);
+  const uname = (u) => (u.kids ? `Unit ${u.id - 100}` : `Unit ${u.id}`);
+  const pic = (w) => w[4] || "";
+  // unit có đủ hình khác nhau cho mọi từ thì mới chơi được "nghe chọn hình"
+  const hasPics = (u) => u.vocab.filter((w) => w[4]).length >= 8;
   const KEY = "bpa1-progress";
   const app = document.getElementById("app");
   const crumbs = document.getElementById("crumbs");
@@ -132,8 +136,10 @@
     vocab: ["Từ vựng", { flash: "Thẻ ghi nhớ", list: "Danh sách", quiz: "Trắc nghiệm", spell: "Nghe – gõ từ" }],
     listen: ["Nghe", { video: "Video bài học", dict: "Chép chính tả", dlg: "Nghe hội thoại" }],
     speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại" }],
-    game: ["🎮 Trò chơi", { memory: "Lật thẻ ghép cặp", scramble: "Xếp chữ", balloon: "Bóng bay từ vựng" }]
+    game: ["🎮 Trò chơi", { pic: "Nghe chọn hình", memory: "Lật thẻ ghép cặp", scramble: "Xếp chữ", balloon: "Bóng bay từ vựng" }]
   };
+  // các chế độ dùng được cho từng unit (không có video thì ẩn mục video, không có hình thì ẩn trò chọn hình)
+  const modesFor = (u, tab) => Object.entries(TABS[tab][1]).filter(([k]) => !(k === "video" && !u.videos.length) && !(k === "pic" && !hasPics(u)));
   // hẹn giờ của trò chơi: tự hủy khi chuyển trang
   const timers = new Set();
   const later = (fn, ms) => { const t = setTimeout(() => { timers.delete(t); fn(); }, ms); timers.add(t); return t; };
@@ -147,7 +153,8 @@
     const u = a === "u" && C.find((x) => x.id === +id);
     if (!u) return home();
     const t = TABS[tab] ? tab : "vocab";
-    const m = TABS[t][1][mode] ? mode : Object.keys(TABS[t][1])[0];
+    const ms = modesFor(u, t).map(([k]) => k);
+    const m = ms.includes(mode) ? mode : ms[0];
     unit(u, t, m);
     window.scrollTo(0, 0);
   }
@@ -155,16 +162,22 @@
 
   function home() {
     crumbs.innerHTML = "";
-    app.innerHTML = `<h1>Chọn bài học</h1>
-      <p class="sub">8 unit theo giáo trình. Mỗi unit gồm <b>Từ vựng</b>, <b>Nghe</b>, <b>Nói</b> và <b>Trò chơi</b> ôn từ.</p>
-      <div class="grid">${C.map((u) => {
+    const cards = (list) => `<div class="grid">${list.map((u) => {
         const p = progress(u);
-        return `<a class="card unit" href="#/u/${u.id}/vocab">
-          <div class="no">UNIT ${u.id}</div><h3>${esc(u.title)}</h3><div class="vi">${esc(u.vi)}</div>
+        return `<a class="card unit ${u.kids ? "kid" : ""}" href="#/u/${u.id}/vocab">
+          ${u.kids ? `<div class="cover">${esc(pic(u.vocab[0]) || "📘")}</div>` : ""}
+          <div class="no">${uname(u).toUpperCase()}</div><h3>${esc(u.title)}</h3><div class="vi">${esc(u.vi)}</div>
           <div class="topics">${esc(u.topics)}</div>
           <div class="bar"><i style="width:${pc(p.all)}%"></i></div>
           <div class="pct"><span>Từ vựng ${pc(p.v)}% · Nghe ${pc(p.l)}% · Nói ${pc(p.s)}%</span><b>${pc(p.all)}%</b></div></a>`;
       }).join("")}</div>`;
+    const kids = C.filter((u) => u.kids), adult = C.filter((u) => !u.kids);
+    app.innerHTML = `<h1>🌟 Tiếng Anh lớp 4</h1>
+      <p class="sub">${kids.length} unit theo thứ tự sách <b>Global Success</b>. Mỗi unit có <b>Từ vựng</b>, <b>Nghe</b>, <b>Nói</b> và <b>Trò chơi</b>.</p>
+      ${cards(kids)}
+      <h1 style="margin-top:34px">Business Partner A1</h1>
+      <p class="sub">Tiếng Anh công sở cho người lớn — ${adult.length} unit.</p>
+      ${cards(adult)}`;
   }
 
   let curUnit = null;
@@ -176,14 +189,14 @@
   }
   function unit(u, tab, mode) {
     curUnit = u;
-    crumbs.innerHTML = `<a href="#/">Tất cả bài học</a> › Unit ${u.id}`;
+    crumbs.innerHTML = `<a href="#/">Tất cả bài học</a> › ${uname(u)}`;
     const prev = C.find((x) => x.id === u.id - 1), next = C.find((x) => x.id === u.id + 1);
-    app.innerHTML = `<div class="row"><div><h1>Unit ${u.id}: ${esc(u.title)}</h1><p class="sub" style="margin:0">${esc(u.vi)} — ${esc(u.topics)}</p></div>
+    app.innerHTML = `<div class="row"><div><h1>${uname(u)}: ${esc(u.title)}</h1><p class="sub" style="margin:0">${esc(u.vi)} — ${esc(u.topics)}</p></div>
       <span class="spacer"></span>
-      ${prev ? `<a class="btn" href="#/u/${prev.id}/${tab}">‹ Unit ${prev.id}</a>` : ""}${next ? `<a class="btn" href="#/u/${next.id}/${tab}">Unit ${next.id} ›</a>` : ""}</div>
+      ${prev ? `<a class="btn" href="#/u/${prev.id}/${tab}">‹ ${uname(prev)}</a>` : ""}${next ? `<a class="btn" href="#/u/${next.id}/${tab}">${uname(next)} ›</a>` : ""}</div>
       <div id="ubar" style="margin-top:12px"></div>
       <div class="tabs">${Object.entries(TABS).map(([k, [name]]) => `<a class="tab ${k === tab ? "on" : ""}" data-t="${k}" href="#/u/${u.id}/${k}">${name}</a>`).join("")}</div>
-      <div class="modes">${Object.entries(TABS[tab][1]).map(([k, name]) => `<a class="mode ${k === mode ? "on" : ""}" href="#/u/${u.id}/${tab}/${k}">${name}</a>`).join("")}</div>
+      <div class="modes">${modesFor(u, tab).map(([k, name]) => `<a class="mode ${k === mode ? "on" : ""}" href="#/u/${u.id}/${tab}/${k}">${name}</a>`).join("")}</div>
       <div id="pane"></div>`;
     refreshBar();
     VIEWS[mode](u, $("#pane"));
@@ -198,7 +211,7 @@
     const draw = () => {
       const w = deck[i];
       pane.innerHTML = `<div class="card flash" id="fc">
-          <div class="w">${esc(w[0])}</div><div class="ipa">${esc(w[1])}</div>
+          ${pic(w) ? `<div class="pic">${esc(pic(w))}</div>` : ""}<div class="w">${esc(w[0])}</div><div class="ipa">${esc(w[1])}</div>
           ${flipped ? `<div class="vi">${esc(w[2])}</div><div class="ex">${esc(w[3])}</div>` : `<div class="hint">Bấm vào thẻ để xem nghĩa</div>`}
         </div>
         <div class="row" style="margin-top:14px">
@@ -237,7 +250,7 @@
     const p = P(u.id);
     pane.innerHTML = `<div class="card"><table class="wordlist">${u.vocab.map((w, i) => `<tr>
       <td><button class="icon" data-i="${i}">🔊</button></td>
-      <td><div class="en">${esc(w[0])} ${p.known.includes(w[0]) ? '<span class="tag">đã thuộc</span>' : ""}</div><div class="muted small">${esc(w[1])}</div></td>
+      <td><div class="en">${pic(w) ? esc(pic(w)) + " " : ""}${esc(w[0])} ${p.known.includes(w[0]) ? '<span class="tag">đã thuộc</span>' : ""}</div><div class="muted small">${esc(w[1])}</div></td>
       <td><div>${esc(w[2])}</div><div class="muted small"><i>${esc(w[3])}</i></div></td></tr>`).join("")}</table></div>`;
     on(".icon", "click", (e) => { const w = u.vocab[+e.currentTarget.dataset.i]; say(w[0] + ". " + w[3], { rate: 0.85 }); });
   };
@@ -262,7 +275,7 @@
       const q = qs[i];
       pane.innerHTML = `<div class="card"><div class="count">Câu ${i + 1}/${qs.length}</div>
         <div class="q">${q.audio ? `<button class="icon" id="sp">🔊</button> <span class="muted small">Nghe và chọn từ đúng</span>` : `${esc(q.w[0])} <button class="icon" id="sp">🔊</button>`}</div>
-        <div class="opts">${q.opts.map((o, k) => `<button class="opt" data-k="${k}">${esc(q.audio ? o[0] : o[2])}</button>`).join("")}</div>
+        <div class="opts">${q.opts.map((o, k) => `<button class="opt" data-k="${k}">${esc(q.audio ? o[0] : (pic(o) ? pic(o) + "  " : "") + o[2])}</button>`).join("")}</div>
         <div id="fb"></div></div>`;
       $("#sp").onclick = () => say(q.w[0], { rate: 0.8 });
       if (q.audio) say(q.w[0], { rate: 0.8 });
@@ -495,11 +508,48 @@
   const stars = (n) => `<div class="stars">${"★".repeat(n)}<span>${"★".repeat(3 - n)}</span></div>`;
   const G = (u) => (P(u.id).game ||= {});
 
+  // Nghe chọn hình: máy đọc từ, bấm vào hình đúng
+  VIEWS.pic = (u, pane) => {
+    const g = G(u), pool = u.vocab.filter((w) => w[4]);
+    const deck = shuffle(pool).slice(0, 10);
+    let i = 0, score = 0;
+    const round = () => {
+      if (i >= deck.length) {
+        if (!(g.pic >= score)) { g.pic = score; save(); }
+        pane.innerHTML = `<div class="card center">${stars(score >= deck.length - 1 ? 3 : score >= deck.length * 0.6 ? 2 : 1)}<div class="muted">Con chọn đúng</div><div class="score">${score}/${deck.length}</div>
+          <p class="muted">Điểm cao nhất: ${g.pic}</p><button class="btn pri" id="again">Chơi lại</button></div>`;
+        $("#again").onclick = () => VIEWS.pic(u, pane);
+        return;
+      }
+      const w = deck[i];
+      const others = shuffle(pool.filter((x) => x !== w && x[4] !== w[4])).slice(0, 3);
+      const opts = shuffle([w, ...others]);
+      pane.innerHTML = `<div class="card center"><div class="row gamebar"><span>Câu ${i + 1}/${deck.length}</span><span class="spacer"></span><span>Đúng: <b>${score}</b></span></div>
+        <p>Nghe và bấm vào <b>hình đúng</b>.</p>
+        <button class="btn pri" id="sp" style="font-size:20px">🔊 Nghe lại</button>
+        <div class="pics">${opts.map((o, k) => `<button class="picbtn" data-k="${k}">${esc(o[4])}</button>`).join("")}</div>
+        <div id="fb"></div></div>`;
+      $("#sp").onclick = () => say(w[0], { rate: 0.75 });
+      say(w[0], { rate: 0.75 });
+      on(".picbtn", "click", (e) => {
+        const ok = opts[+e.currentTarget.dataset.k] === w;
+        if (ok) { score++; cheer(); }
+        app.querySelectorAll(".picbtn").forEach((b, k) => { b.disabled = true; if (opts[k] === w) b.classList.add("right"); else if (b === e.currentTarget) b.classList.add("wrong"); });
+        $("#fb").innerHTML = `<div class="fb ${ok ? "good" : "bad"}">${esc(w[4])} <b>${esc(w[0])}</b> ${esc(w[1])} — ${esc(w[2])}<br><i>${esc(w[3])}</i></div>
+          <div style="margin-top:12px"><button class="btn pri" id="nx">Tiếp ›</button></div>`;
+        $("#nx").onclick = () => { i++; round(); };
+        $("#nx").focus();
+        say(w[0] + ". " + w[3], { rate: 0.85 });
+      });
+    };
+    round();
+  };
+
   // Lật thẻ: ghép từ tiếng Anh với nghĩa tiếng Việt
   VIEWS.memory = (u, pane) => {
     const g = G(u), N = 8;
     const pick = shuffle(u.vocab).slice(0, N);
-    const cards = shuffle(pick.flatMap((w, i) => [{ id: i, t: w[0], en: true }, { id: i, t: w[2], en: false }]));
+    const cards = shuffle(pick.flatMap((w, i) => [{ id: i, t: w[0], en: true }, { id: i, t: (pic(w) ? pic(w) + " " : "") + w[2], en: false }]));
     let open = [], lock = false, moves = 0, found = 0;
     pane.innerHTML = `<div class="row gamebar"><span>Lượt lật: <b id="mv">0</b></span><span>Cặp đúng: <b id="fd">0</b>/${N}</span>
         <span class="spacer"></span>${g.memory ? `<span class="tag">kỷ lục ${g.memory} lượt</span>` : ""}<button class="btn" id="re">↻ Ván mới</button></div>
@@ -548,7 +598,7 @@
       if (need.length > 1 && tiles.join("") === need.map((k) => chars[k].toLowerCase()).join("")) tiles.reverse();
       pane.innerHTML = `<div class="card center"><div class="row gamebar"><span>Từ ${i + 1}/${deck.length}</span><span class="spacer"></span><span>Điểm: <b>${score}</b></span></div>
         <div style="margin:14px 0 4px"><button class="icon" id="sp">🔊</button></div>
-        <div class="big" style="color:var(--vocab)">${esc(w[2])}</div>
+        ${pic(w) ? `<div class="pic">${esc(pic(w))}</div>` : ""}<div class="big" id="mean" style="color:var(--vocab)">${esc(w[2])}</div>
         <div class="slots">${chars.map((c, k) => (isL(c) ? `<span class="slot" data-k="${k}"></span>` : c === " " ? '<span class="gap"></span>' : `<span class="slot fixed">${esc(c)}</span>`)).join("")}</div>
         <div class="tiles">${tiles.map((c) => `<button class="tile" data-c="${c}">${c}</button>`).join("")}</div>
         <div class="row" style="justify-content:center"><button class="btn" id="hint">💡 Gợi ý 1 chữ</button><button class="btn" id="skip">Bỏ qua ›</button></div>
@@ -614,7 +664,7 @@
       target = pool[Math.floor(Math.random() * pool.length)];
       const mine = target, opts = shuffle([mine, ...shuffle(pool.filter((w) => w !== mine)).slice(0, 3)]);
       const cols = shuffle(COLORS), dur = Math.max(4.5, 8.5 - score / 40);
-      $("#ask").textContent = mine[2];
+      $("#ask").textContent = (pic(mine) ? pic(mine) + " " : "") + mine[2];
       opts.forEach((o, k) => {
         const b = document.createElement("button");
         b.className = "balloon"; b.textContent = o[0];
@@ -694,7 +744,7 @@
 
   /* ================= GIỚI HẠN THỜI GIAN ================= */
   // Mỗi ngày dùng tối đa LIMIT giây; hết giờ thì khóa trang trong LOCK mili giây.
-  const LIMIT = 10 * 60, LOCK = 8 * 60 * 60 * 1000, TKEY = "bpa1-time";
+  const LIMIT = 15 * 60, LOCK = 8 * 60 * 60 * 1000, TKEY = "bpa1-time";
   const timerEl = document.getElementById("timer");
   const loadT = () => { try { return Object.assign({ used: 0, day: "", until: 0 }, JSON.parse(localStorage.getItem(TKEY))); } catch { return { used: 0, day: "", until: 0 }; } };
   const saveT = (t) => { try { localStorage.setItem(TKEY, JSON.stringify(t)); } catch { /* bỏ qua */ } };
