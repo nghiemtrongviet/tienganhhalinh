@@ -153,11 +153,11 @@
   const TABS = {
     vocab: ["Từ vựng", { flash: "Thẻ ghi nhớ", list: "Danh sách", quiz: "Trắc nghiệm", spell: "Nghe – gõ từ" }],
     listen: ["Nghe", { video: "Video bài học", order: "Nghe – xếp câu", dict: "Chép chính tả", dlg: "Nghe hội thoại" }],
-    speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại" }],
+    speak: ["Nói", { shadow: "Nhại theo mẫu câu", role: "Đóng vai hội thoại", chat: "🤖 Trò chuyện với cô Mimi" }],
     game: ["🎮 Trò chơi", { pic: "Nghe chọn hình", memory: "Lật thẻ ghép cặp", scramble: "Xếp chữ", balloon: "Bóng bay từ vựng" }]
   };
   // các chế độ dùng được cho từng unit (không có video thì ẩn mục video, không có hình thì ẩn trò chọn hình)
-  const modesFor = (u, tab) => Object.entries(TABS[tab][1]).filter(([k]) => !(k === "video" && !u.videos.length) && !(k === "pic" && !hasPics(u)) && !(k === "dict" && u.kids) && !(k === "order" && !u.kids));
+  const modesFor = (u, tab) => Object.entries(TABS[tab][1]).filter(([k]) => !(k === "chat" && !AI_URL) && !(k === "video" && !u.videos.length) && !(k === "pic" && !hasPics(u)) && !(k === "dict" && u.kids) && !(k === "order" && !u.kids));
   /* ----- học đúng thứ tự: Từ vựng → Nghe → Nói → Trò chơi, xong bước trước mới mở bước sau ----- */
   const QUIZ_PASS = 80;
   const STEPS = [
@@ -168,7 +168,7 @@
     ["speak", "shadow", "nói đạt tất cả các mẫu câu", (u, p) => u.phrases.every((_, k) => p.speak[k] >= 70)]
   ];
   // mỗi chế độ cần xong bao nhiêu bước đầu thì mới mở
-  const NEED = { flash: 0, list: 0, quiz: 1, spell: 1, video: 2, order: 2, dict: 2, dlg: 3, shadow: 4, role: 5, pic: 5, memory: 5, scramble: 5, balloon: 5 };
+  const NEED = { flash: 0, list: 0, quiz: 1, spell: 1, video: 2, order: 2, dict: 2, dlg: 3, shadow: 4, role: 5, chat: 5, pic: 5, memory: 5, scramble: 5, balloon: 5 };
   const stage = (u) => { const p = P(u.id), i = STEPS.findIndex((st) => !st[3](u, p)); return i < 0 ? STEPS.length : i; };
   const stepAt = (u, i) => [STEPS[i][0], STEPS[i][1] || (u.kids ? "order" : "dict")];
   const isOpen = (u, mode) => stage(u) >= NEED[mode];
@@ -178,6 +178,8 @@
   const every = (fn, ms) => { const t = setInterval(fn, ms); timers.add(t); return t; };
   const clearTimers = () => { timers.forEach((t) => { clearTimeout(t); clearInterval(t); }); timers.clear(); };
   const VIEWS = {};
+  // Địa chỉ máy chủ phụ gọi AI (Google Apps Script, xem tro-ly-ao.gs). Để trống thì ẩn mục trò chuyện.
+  const AI_URL = "", CHAT_TURNS = 15;
   function route() {
     stopSay(); stopRec(); clearTimers();
     if (locked()) return showLock();
@@ -554,6 +556,79 @@
       };
     };
     draw();
+  };
+
+  /* ----- trò chuyện với trợ lý AI ----- */
+  VIEWS.chat = (u, pane) => {
+    const msgs = [];           // {role: "assistant" | "user", text}
+    let busy = false, turns = 0, ended = false;
+    // tách câu tiếng Anh (để đọc to) và dòng gợi ý tiếng Việt bắt đầu bằng 💡
+    const split = (t) => { const ls = t.split("\n").map((x) => x.trim()).filter(Boolean); return { en: ls.filter((x) => !x.startsWith("💡")).join(" "), tip: ls.filter((x) => x.startsWith("💡")).join(" ") }; };
+    const ERR = { limit: "Hôm nay cô Mimi đã nói chuyện đủ rồi. Mai mình gặp lại nhé!", busy: "Cô Mimi đang bận một chút. Con thử lại sau vài giây nhé.", nokey: "Bố mẹ chưa cài khóa cho cô Mimi.", auth: "Khóa của cô Mimi chưa đúng. Con nhờ bố mẹ kiểm tra nhé." };
+    pane.innerHTML = `${SR ? "" : `<div class="note">Trình duyệt này không nghe được giọng nói. Con hãy gõ câu trả lời, hoặc mở trang bằng <b>Chrome</b> để nói bằng micro.</div>`}
+      <div class="card chat"><div class="row"><div class="big">🤖 Cô Mimi</div><span class="count" id="cturn"></span><span class="spacer"></span><button class="btn" id="cnew">↻ Bắt đầu lại</button></div>
+        <div class="muted small">Cô Mimi là trợ lý AI. Con nói tiếng Anh với cô về chủ đề: <b>${esc(u.title)}</b>. Không nói tên trường, địa chỉ hay số điện thoại nhé.</div>
+        <div id="clog" class="clog" aria-live="polite"></div>
+        <div class="row cin">${SR ? `<button class="btn rec" id="crec">🎙 Bấm để nói</button>` : ""}
+          <input id="ctext" maxlength="200" autocomplete="off" placeholder="…hoặc gõ câu tiếng Anh ở đây"><button class="btn pri" id="csend">Gửi</button></div></div>`;
+    const log = $("#clog"), inp = $("#ctext"), sendB = $("#csend"), recB = $("#crec");
+    const draw = (wait) => {
+      log.innerHTML = msgs.map((m, k) => {
+        if (m.role === "user") return `<div class="bub me">${esc(m.text)}</div>`;
+        const { en, tip } = split(m.text);
+        return `<div class="bub bot"><button class="icon" data-k="${k}" title="Nghe lại">🔊</button><div><div>${esc(en)}</div>${tip ? `<div class="tip">${esc(tip)}</div>` : ""}</div></div>`;
+      }).join("") + (wait ? `<div class="bub bot wait">Cô Mimi đang nghĩ…</div>` : "");
+      on(".bub .icon", "click", (e) => say(split(msgs[+e.currentTarget.dataset.k].text).en, { rate: 0.85 }), log);
+      log.scrollTop = log.scrollHeight;
+      $("#cturn").textContent = turns ? `Lượt ${turns}/${CHAT_TURNS}` : "";
+      const off = busy || ended;
+      inp.disabled = sendB.disabled = off; if (recB) recB.disabled = off;
+    };
+    const note = (t) => { log.insertAdjacentHTML("beforeend", `<div class="fb mid">${esc(t)}</div>`); log.scrollTop = log.scrollHeight; };
+    const ask = async () => {
+      busy = true; draw(true);
+      let reply = "", err = "";
+      try {
+        // text/plain để trình duyệt không hỏi trước (Apps Script không trả lời OPTIONS)
+        const r = await fetch(AI_URL, { method: "POST", body: JSON.stringify({ unit: { title: u.title, words: u.vocab.map((w) => w[0]), phrases: u.phrases.map((x) => x[0]) }, messages: msgs.slice(-12) }) });
+        const j = await r.json();
+        if (j.ok) reply = String(j.reply || ""); else err = j.error || "x";
+      } catch { err = "net"; }
+      busy = false;
+      if (!pane.isConnected) return;
+      if (!reply) {
+        if (msgs.length && msgs[msgs.length - 1].role === "user") { inp.value = msgs.pop().text; turns--; } // trả lại câu vừa nói để gửi lại
+        draw(false); note(ERR[err] || "Chưa kết nối được với cô Mimi. Con kiểm tra mạng rồi thử lại nhé.");
+        if (!msgs.length) { inp.disabled = sendB.disabled = true; if (recB) recB.disabled = true; }
+        return;
+      }
+      msgs.push({ role: "assistant", text: reply });
+      if (turns >= CHAT_TURNS) ended = true;
+      draw(false);
+      say(split(reply).en, { rate: 0.85 });
+      if (ended) note(`${kid} đã trò chuyện ${CHAT_TURNS} lượt rồi, giỏi lắm! Bấm “Bắt đầu lại” nếu muốn nói chuyện tiếp.`);
+    };
+    const send = (text) => {
+      text = text.trim().slice(0, 200);
+      if (!text || busy || ended) return;
+      stopSay();
+      msgs.push({ role: "user", text }); turns++;
+      inp.value = "";
+      cheer(); markVoice();
+      ask();
+    };
+    sendB.onclick = () => send(inp.value);
+    inp.onkeydown = (e) => { if (e.key === "Enter") send(inp.value); };
+    if (recB) recB.onclick = () => {
+      if (activeRec) { activeRec.stop(); return; }
+      listen((alts, err) => {
+        if (!pane.isConnected) return;
+        if (!alts.length) return note(srError(err));
+        send(alts[0]);
+      }, (live) => { recB.classList.toggle("live", live); recB.textContent = live ? "● Đang nghe… (bấm để dừng)" : "🎙 Bấm để nói"; });
+    };
+    $("#cnew").onclick = () => { stopSay(); stopRec(); VIEWS.chat(u, pane); };
+    ask();
   };
 
   VIEWS.role = (u, pane) => {

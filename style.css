@@ -164,6 +164,14 @@ select.inp { width: auto; padding: 8px 10px; }
 .pbox input { width: 150px; font-size: 24px; font-weight: 700; letter-spacing: .2em; text-align: center; padding: 8px; border: 2px solid var(--line); border-radius: 10px; }
 .pbox button:disabled { opacity: .55; }
 .pbox input.secret { -webkit-text-security: disc; }
+.clog { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; max-height: 46vh; min-height: 120px; overflow-y: auto; padding: 4px; }
+.bub { max-width: 86%; padding: 10px 14px; border-radius: 16px; font-size: 18px; line-height: 1.4; }
+.bub.bot { align-self: flex-start; background: var(--brand-soft); display: flex; gap: 8px; align-items: flex-start; border-bottom-left-radius: 4px; }
+.bub.me { align-self: flex-end; background: var(--ok-soft); border-bottom-right-radius: 4px; }
+.bub.wait { color: var(--muted); font-style: italic; }
+.bub .tip { margin-top: 6px; font-size: 15px; color: #8a5a00; }
+.cin { gap: 8px; flex-wrap: wrap; }
+.cin input { flex: 1; min-width: 160px; font-size: 17px; padding: 10px 12px; border: 2px solid var(--line); border-radius: 10px; }
 .tab.locked, .mode.locked { opacity: .5; cursor: not-allowed; user-select: none; }
 .gate { margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; background: #fff3c4; border: 1px solid #f5b301; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .gate.done { background: var(--ok-soft); border-color: var(--ok); }
